@@ -1,0 +1,15 @@
+Accuracy: 0.8333333333333334
+AUC ROC score: 0.7880341880341881
+F1 Score: 0.8055142651642292
+Precision: 0.8631666206134292
+Recall: 0.788034188034188
+Classes: ['negative', 'positive']
+Input Dimension: 784
+Number of Output Nodes: 1
+Number of Hidden Nodes: 10
+Batch Size: 73
+Epochs: 20
+Optimizer: Advantage_system4.1
+Learning Rate: 0.4529451796571889
+QPU Time Used: 3333706228.241779
+Beta Eff: 1.0

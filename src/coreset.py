@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-import src.conv_deep_qbm_weight_sharing as cdqbm
+import src.model.cdqbm as cdqbm
 
 
 def euclidean_dist( x, y):

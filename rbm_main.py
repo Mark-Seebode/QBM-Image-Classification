@@ -56,7 +56,7 @@ for seed in seeds:
     (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('src/data/medmnist/breastmnist.npz')
     print("Data loaded")
     print("Train train_x shape: ", train_X.shape)
-    train_X, val_X, test_X = data_loader.preprocess_images(train_X, val_X, test_X)
+    train_X, val_X, test_X = data_loader.flatten_images(train_X, test_X, val_X)
 
     rbm = ClassificationRBM(args.visible_units, args.hidden_units, args.cd_k, num_classes=2, learning_rate=args.lr, use_cuda=False, seed=seed)
     device = rbm.get_device(USE_GPU)

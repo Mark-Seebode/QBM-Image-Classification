@@ -49,7 +49,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     print("Data loaded")
 
     print("Preprocessing data...")
-    train_X, test_X, val_X = data_loader.preprocess_images(train_X, test_X)
+    train_X, test_X, val_X, = data_loader.flatten_images(train_X, test_X)
 
     #train_y = data_loader.encode_labels_to_onehot(train_y, num_classes)
     print("Data preprocessed")

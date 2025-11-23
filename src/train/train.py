@@ -12,7 +12,6 @@ def nll_from_probs_binary(probs: np.ndarray, y: int, eps=1e-12) -> float:
 def train_one_iteration(
     model,
     X, Y,
-    num_reads: int,
     beta_eff: float,
     lr: float,
     one_hot: bool = False,
@@ -38,8 +37,8 @@ def train_one_iteration(
         else:
             lab = np.array([int(y)], dtype=float)
 
-        out_c = run_clamped(model, x, lab, num_reads, beta_eff)
-        out_u = run_unclamped(model, x, num_reads, beta_eff, one_hot)
+        out_c = run_clamped(model, x, lab, beta_eff)
+        out_u = run_unclamped(model, x, beta_eff, one_hot)
 
 
         if not one_hot:
@@ -256,12 +255,14 @@ def get_average_configuration_single(model, samples, x_input: np.ndarray, y: np.
 def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, beta_eff, one_hot: bool = False):
     n = len(train_x)
     epoch_loss_list = []
+    dataset_shuffle_seeds = [123, 123421, 124340923, 2304912, 30430, 329846, 213414, 31984, 23414, 83827, 28282, 3891238, 198417, 314712643, 39288172,352532, 320385853, 3259825, 239828935, 38383833838]
     for epoch in tqdm(range(1, epochs + 1),
                       desc="Epochs",
                       ncols=100, leave=False):
 
         epoch_loss = 0.0
-
+        if epoch == 11:
+            lr = 0.01
         with tqdm(range(0, n, batch_size),
                   desc=f"Epoch {epoch}/{epochs} batches",
                   ncols=100,
@@ -283,7 +284,7 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
                 avg_loss = epoch_loss / (idx + 1)
                 epoch_loss_list.append(avg_loss)
                 batch_bar.set_postfix(loss=f"{avg_loss:.4f}")
-
+        #train_x, train_y = data_loader.shuffle_images(train_x, train_y, dataset_shuffle_seeds[epoch-1])
         tqdm.write(f"Epoch {epoch}/{epochs} finished - avg loss: {avg_loss:.4f}")
 
     return epoch_loss_list

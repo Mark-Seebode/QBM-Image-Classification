@@ -14,7 +14,7 @@ class Conv_Deep_QBM(MODEL):
     def __init__(self, num_visible_nodes, num_lable_nodes, image_shape=(28,28), seed=77, kernel_size=3, pooling_size=0,
                  pooling_type="deterministic", stride=1, sequential_layer_sizes=None,
                  param_string="", load_path="", speicherort=None, is_restricted=False,
-                hidden_bias_type="none", solver="SA", anneal=1000, token=""):
+                hidden_bias_type="none", solver="SA", num_reads=100, anneal=1000, api_token="", groupQpuToken_name=""):
 
         self.kernel_size = kernel_size
         self.pooling_size = pooling_size
@@ -52,28 +52,24 @@ class Conv_Deep_QBM(MODEL):
         self.load_path = load_path
         self.speicherort = speicherort
 
-        self.sampler = self.init_sampler(solver, anneal, seed, token)
+        self.sampler = self.init_sampler(solver, num_reads, anneal, seed, api_token, groupQpuToken_name)
 
 
-    def init_sampler(self, solver="SA", anneal=1000, seed=77, token=""):
+    def init_sampler(self, solver="SA", num_reads=100, anneal=1000, seed=77, api_token="", groupQpuToken_name=""):
         # -------------------
         # Sampler
         # -------------------
         if solver.upper() == "SA":
-            sampler = LocalSASampler(num_sweeps=anneal, seed=seed)
+            sampler = LocalSASampler(num_reads=num_reads, num_sweeps=anneal, seed=seed)
         else:
-            # Optional: D-Wave path if you want it
-            try:
-                from dwave.cloud import Client
-                client = Client(token=token, solver=solver)
-                solver_obj = client.get_solver(name=solver)
-                sampler = DWaveAdapter(solver=solver_obj, embedding=None, seed=seed)
-                print(f"Using D-Wave solver: {solver}")
-            except Exception as e:
-                raise RuntimeError(
-                    f"Failed to initialize D-Wave solver '{solver}'. "
-                    f"Use --solver SA or ensure TOKEN and solver name are valid. Error: {e}"
-                )
+            sampler = DWaveAdapter(
+                solver=solver,
+                api_token=api_token,
+                groupQpuToken_name=groupQpuToken_name,
+                num_reads=num_reads,
+                embedding=None, # TODO: do embedding here?
+                seed=seed)
+            print(f"Using D-Wave solver: {solver}")
 
         return sampler
 

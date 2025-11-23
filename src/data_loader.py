@@ -11,6 +11,8 @@ from torch.utils.data import DataLoader
 import torch
 #import torchvision
 from sklearn.model_selection import train_test_split
+import os, random
+from PIL import Image
 
 # # Convert to grayscale, then tensor, then normalize
 # transform = transforms.Compose([
@@ -18,6 +20,54 @@ from sklearn.model_selection import train_test_split
 #     transforms.ToTensor(),
 #     transforms.Normalize((0.5,), (0.5,))  # Normalize grayscale values
 # ])
+
+def get_imagenet(
+        root: str,
+        classes: list[str] = None,
+        n_per_class: int = 100,
+        image_size: tuple[int,int] = (224,224),
+        val_ratio: float = 0.2,
+        test_ratio: float = 0.1,
+        seed: int = 42,
+        to_grayscale: bool = True,   # <- default: make 2D images
+    ):
+    """returns train, val, test split as numpy arrays from a subset of ImageNet dataset stored in `root` directory."""
+    rng = np.random.default_rng(seed)
+    all_classes = sorted([d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d))])
+    if classes is None:
+        classes = all_classes[:2]
+    print("Using classes:", classes)
+
+    X, y = [], []
+    for label, cls in enumerate(classes):
+        cls_dir = os.path.join(root, cls)
+        imgs = [os.path.join(cls_dir, f) for f in os.listdir(cls_dir)
+                if f.lower().endswith(('.jpg','.jpeg','.png'))]
+        rng.shuffle(imgs)
+        imgs = imgs[:n_per_class]
+        for p in imgs:
+            with Image.open(p) as im:
+                if to_grayscale:
+                    im = im.convert('L')  # <- 1 channel
+                else:
+                    im = im.convert('RGB')
+                im = im.resize(image_size, Image.Resampling.LANCZOS)
+                arr = np.asarray(im, dtype=np.float32) / 255.0
+                X.append(arr)
+                y.append(label)
+
+    X = np.stack(X).astype(np.float32)
+    y = np.array(y, dtype=np.uint8)
+
+    # If grayscale, X shape is (N, H, W); if RGB, (N, H, W, 3)
+    X_train, X_tmp, y_train, y_tmp = train_test_split(
+        X, y, test_size=val_ratio+test_ratio, stratify=y, random_state=seed
+    )
+    rel_test = test_ratio / (val_ratio + test_ratio)
+    X_val, X_test, y_val, y_test = train_test_split(
+        X_tmp, y_tmp, test_size=rel_test, stratify=y_tmp, random_state=seed
+    )
+    return (X_train, y_train), (X_val, y_val), (X_test, y_test)
 
 
 def get_mnist(file_image: str, file_labels: str, classes: list[int] = None, size: int = None, samples_per_class:int =None, seed: int = 42) -> tuple[np.array, np.array]:
@@ -166,7 +216,6 @@ def get_medmnist(file: str, index: int = 0, duplicate_positives_n_times: int = 0
 
     return (train_images, train_labels), (val_images, val_labels), (test_images, test_labels)
 
-import numpy as np
 
 def balance_by_undersampling(train_images, train_labels):
     """
@@ -205,74 +254,34 @@ def balance_by_undersampling(train_images, train_labels):
     return train_images[balanced_indices], train_labels[balanced_indices]
 
 
-
-# def resize_and_flatten(train_x, test_x,  val_x=None, outputshape=None, do_flatten=True):
-#     #[resize(image, outputshape, anti_aliasing=True)
-#     if outputshape is not None:
-#         resized_train_x = np.array([resize(image, outputshape, anti_aliasing=True).flatten() for image in train_x])
-#         if val_x is not None:
-#             resized_val_x = np.array([resize(image, outputshape, anti_aliasing=True).flatten() for image in val_x])
-#         resized_test_x = np.array([resize(image, outputshape, anti_aliasing=True).flatten() for image in test_x])
-#     else:
-#         resized_train_x = np.array([image.flatten() for image in train_x])
-#         if val_x is not None:
-#             resized_val_x = np.array([image.flatten() for image in val_x])
-#         resized_test_x = np.array([image.flatten() for image in test_x])
-#
-#     if val_x is not None:
-#         return resized_train_x,  resized_test_x, resized_val_x
-#     else:
-#         return resized_train_x, resized_test_x, None
-
-def resize_and_flatten(train_x, test_x,  val_x=None, outputshape=None):
+def flatten_images(train_x, test_x, val_x=None):
     #[resize(image, outputshape, anti_aliasing=True)
-    resized_train_x = np.array([image.flatten() for image in train_x])
+    train_x = np.array([image.flatten() for image in train_x])
     if val_x is not None:
-        resized_val_x = np.array([image.flatten() for image in val_x])
-    resized_test_x = np.array([image.flatten() for image in test_x])
+        val_x = np.array([image.flatten() for image in val_x])
+    test_x = np.array([image.flatten() for image in test_x])
 
     if val_x is not None:
-        return resized_train_x,  resized_test_x, resized_val_x
+        return train_x,  test_x, val_x
     else:
-        return resized_train_x, resized_test_x, None
+        return train_x, test_x, None
 
 
-def preprocess_images(train_x: np.ndarray, test_x: np.ndarray, val_x:np.ndarray= None,outputshape=None,
-                      pca_n_components=None, do_flatten=True) -> \
-        tuple[np.ndarray, np.ndarray, np.ndarray]:
+def pca_transform(pca_n_components, train_x: np.ndarray, test_x: np.ndarray, val_x:np.ndarray= None) \
+        -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Preprocess the image for encoding. The images can be either be resized and directly returned for amplitude-encoding or
-    preprocessed by PCA for amplitude-encoding or angle-encoding.
+    Apply PCA transformation to the data.
 
     :param train_x: train data to process
     :param test_x: test data to process
-    :param outputshape: the shape of the output image (e.g. (16, 16)). If you want to use PCA, the outputshape should be (28, 28) which is the default
     :param pca_n_components: the number of components for PCA. If None, PCA is not used. If you want to use PCA let the outputshape be default
     :return: fully processed training and test data for encoding
     """
-    print("Start preprocessing images for encoding...")
-    if do_flatten:
-        train_x,  test_x, val_x, = resize_and_flatten(train_x, test_x, val_x, outputshape)
+    pca = PCA(n_components=pca_n_components)
+    train_x = pca.fit_transform(train_x)
+    test_x = pca.transform(test_x)
+    val_x = pca.transform(val_x)
 
-    # train_images_resized = train_images_resized / 255.0
-    # test_images_resized = test_images_resized / 255.0
-    #
-    # imagesX_train_flat_normalized = np.array([image / np.linalg.norm(image) for image in train_images_resized])
-    # imagesX_test_flat_normalized = np.array([image / np.linalg.norm(image) for image in test_images_resized])
-    #
-    # # Padding
-    # # is hier vllt ga nicht nötig weil wir die bilder schon auf 16x16 = 256 resized haben
-    #train_images_resized = imagesX_train_flat_normalized  # np.array([np.pad(image, (0, 2 ** num_qubits - len(image)), 'constant') for image in imagesX_train_flat_normalized])
-    #test_images_resized = imagesX_test_flat_normalized  # np.array([np.pad(image, (0, 2 ** num_qubits - len(image)), 'constant') for image in imagesX_test_flat_normalized])
-
-    if pca_n_components is not None:
-        pca = PCA(n_components=pca_n_components)
-        train_x = pca.fit_transform(train_x)
-        test_x = pca.transform(test_x)
-        val_x = pca.transform(val_x)
-
-
-    print("Preprocessing images for encoding finished!!")
     return train_x, test_x, val_x,
 
 

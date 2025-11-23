@@ -12,7 +12,7 @@ from src.qubo.sampler import LocalSASampler, DWaveAdapter
 
 class Conv_Deep_QBM(MODEL):
     def __init__(self, num_visible_nodes, num_lable_nodes, image_shape=(28,28), seed=77, kernel_size=3, pooling_size=0,
-                 pooling_type="deterministic", stride=1, sequential_layer_sizes=None,
+                 pooling_type="deterministic", stride=1, sequential_layer_sizes=None, num_recurrent_layers=0,
                  param_string="", load_path="", speicherort=None, is_restricted=False,
                 hidden_bias_type="none", solver="SA", num_reads=100, anneal=1000, api_token="", groupQpuToken_name=""):
 
@@ -33,6 +33,8 @@ class Conv_Deep_QBM(MODEL):
          self.input_groups,
          self.conv_layer_dim,
          self.num_conv_units) = self.build_model_structure()
+
+        self.num_recurrent_layers = num_recurrent_layers
 
         super().__init__(seed, num_hidden_nodes, num_visible_nodes, num_lable_nodes, is_restricted)
 
@@ -137,25 +139,33 @@ class Conv_Deep_QBM(MODEL):
         random.seed(self.seed)
         np.random.seed(self.seed)
 
-        kernel_weights = np.random.uniform(-1, 1, (self.kernel_size, self.kernel_size))
-
+        kernel_weights = []
         weights_sequential_layer = []
-        for i, num_units in enumerate(self.sequential_layer_sizes):
-            weights_sequential_layer.append(
-                np.random.uniform(-1, 1, (self.num_active_units_per_layer[1+i], num_units)))
+        weights_intralayer_sequential = []
+        weights_hidden_to_output = []
 
-        if not self.is_restricted:
-            weights_interlayer_sequential = []
+        for recurrent_layer in range(self.num_recurrent_layers):
+            kernel_weights.append(np.random.uniform(-1, 1, (self.kernel_size, self.kernel_size)))
+
+            # hidden -> hidden (interlayer)
+            weights_sequential_current_recurrent = []
+            for i, num_units in enumerate(self.sequential_layer_sizes):
+                weights_sequential_current_recurrent.append(
+                    np.random.uniform(-1, 1, (self.num_active_units_per_layer[1+i], num_units)))
+            weights_sequential_layer.append(weights_sequential_current_recurrent)
+
+            # hidden -> hidden (intralayer)
+            weights_intralayer_sequential_current_recurrent = []
             for size in self.sequential_layer_sizes:
                 weights = np.triu(np.random.uniform(-1, 1, size))
-                weights_interlayer_sequential.append(weights)
-        else:
-            weights_interlayer_sequential = None
+                weights_intralayer_sequential_current_recurrent.append(weights)
+            weights_intralayer_sequential.append(weights_intralayer_sequential_current_recurrent)
 
-        # Last hidden -> output
-        weights_hidden_to_output = self.init_weights_hidden_to_output(
-            self.num_active_units_per_layer[-1], self.num_lable_nodes
-        )
+            # Last hidden -> output
+            weights_hidden_to_output.append(
+                self.init_weights_hidden_to_output(self.num_active_units_per_layer[-1], self.num_lable_nodes)
+            )
+
         # output -> output
         weights_output_output = np.triu(
             np.random.uniform(-1, 1, (self.num_lable_nodes, self.num_lable_nodes)), k=1
@@ -166,21 +176,24 @@ class Conv_Deep_QBM(MODEL):
             weights_sequential_layer,
             weights_hidden_to_output,
             weights_output_output,
-            weights_interlayer_sequential
+            weights_intralayer_sequential
         )
 
     def init_biases(self):
-        # Biases
-        if self.hidden_bias_type == "shared":
-            biases_conv_units = np.random.uniform(-1, 1, 1)  # TODO: currently only one Conv filter supported
-        elif self.hidden_bias_type == "none":
-            biases_conv_units = np.zeros(self.sequential_layer_sizes)  # TODO: not working
-        else:
-            biases_conv_units = np.random.uniform(-1, 1, self.num_conv_units)
+        biases_conv_units = []
+        biases_sequential_units = []
+        for recurrent_layer in range(self.num_recurrent_layers):
+            if self.hidden_bias_type == "shared":
+                biases_conv_units.append(np.random.uniform(-1, 1, 1))
+            elif self.hidden_bias_type == "none":
+                biases_conv_units.append(np.zeros(self.sequential_layer_sizes))  # TODO: not working
+            else: # self.hidden_bias_type == "individual"
+                biases_conv_units.append(np.random.uniform(-1, 1, self.num_conv_units))
 
-        biases_sequential_units = np.random.uniform(-1, 1, sum(self.sequential_layer_sizes))
+            biases_sequential_units.append(np.random.uniform(-1, 1, sum(self.sequential_layer_sizes)))
 
         biases_output = np.random.uniform(-1, 1, self.num_lable_nodes)
+
         return biases_conv_units, biases_sequential_units, biases_output
 
 

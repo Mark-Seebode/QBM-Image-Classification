@@ -73,8 +73,16 @@ def build_slices(spec: StackSpec) -> BlockSlices:
 
     return BlockSlices(conv=conv, pool=pool, seq_layers=seq_layers, hidden=hidden_sl, out=out_sl)
 
-def last_hidden_slice(slices: BlockSlices, recurrent_layer_index: int) -> slice:
-    return slices.seq_layers[recurrent_layer_index][-1] if slices.seq_layers else slices.conv[recurrent_layer_index]
+
+
+def last_hidden_slice(slices: BlockSlices) -> list[slice]:
+    last_hidden_sl = []
+    if slices.seq_layers:
+        for seq_layer in slices.seq_layers:
+            last_hidden_sl.append(seq_layer[-1])
+    else:
+       last_hidden_sl = slices.conv
+    return last_hidden_sl
 
 
 

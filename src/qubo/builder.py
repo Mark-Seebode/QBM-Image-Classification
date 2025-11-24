@@ -2,13 +2,17 @@ import numpy as np
 
 def _conv_linear_terms(model, ctx) -> np.ndarray:
     """Return linear biases for the conv block"""
+    bases = []
     if model.pooling_type == "deterministic":
-        base = ctx.fmap_flat[ctx.pooled_idx]
-        if model.hidden_bias_type == "shared":
-            base = base + float(model.biases_conv_units[0])
-        elif model.hidden_bias_type != "none":
-            base = base
-        return base
+        for recurrent_layer in range(model.num_recurrent_layers):
+            base = ctx.fmap_flat[recurrent_layer][ctx.pooled_idx]
+            if model.hidden_bias_type == "shared":
+                base = base + model.biases_conv_units[recurrent_layer][0]
+            elif model.hidden_bias_type != "none":
+                base = base
+            bases.append(base)
+        return np.concatenate(bases, axis=0)
+    raise NotImplementedError("Not implemented for probabilistic pooling")
     # probabilistic -> all conv units active
     base = ctx.fmap_flat.copy()
     if model.hidden_bias_type == "shared":
@@ -23,29 +27,33 @@ def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
     Q = np.zeros((n, n), dtype=float)
 
     if model.pooling_type == "probabilistic":
+        raise NotImplementedError("Unclamped QUBO with probabilistic pooling not implemented")
         Q = add_at_most_one_penalty_upper(model, Q, 0.8225)
         Q = add_link_penalty_upper(model, Q, ctx, 0.8225)
 
     # Conv
-    conv_bias = _conv_linear_terms(model, ctx)
-    Q[ctx.slices.conv, ctx.slices.conv] += np.diag(conv_bias)
+    conv_biases = _conv_linear_terms(model, ctx)
+    for recurrent_layer in range(model.num_recurrent_layers):
+        conv_bias = conv_biases[recurrent_layer]
+        Q[ctx.slices.conv[recurrent_layer], ctx.slices.conv[recurrent_layer]] += np.diag(conv_bias)
 
-    # Sequential
-    prev_sl = ctx.slices.pool
-    for li, cur_sl in enumerate(ctx.slices.seq_layers):
-        W = model.weights_sequential_layer[li]
-        Q[prev_sl, cur_sl] += W
-        prev_sl = cur_sl
-
-    # within-layer
-    if model.weights_interlayer_sequential is not None:
+        # Sequential
+        prev_sl = ctx.slices.pool[recurrent_layer]
         for li, cur_sl in enumerate(ctx.slices.seq_layers):
-            Q[cur_sl, cur_sl] += np.triu(model.weights_interlayer_sequential[li], k=1)
+            W = model.weights_sequential_layer[recurrent_layer][li]
+            Q[prev_sl, cur_sl] += W
+            prev_sl = cur_sl
+
+        # within-layer
+        if len(model.weights_interlayer_sequential) > 0:
+            for li, cur_sl in enumerate(ctx.slices.seq_layers[recurrent_layer]):
+                Q[cur_sl, cur_sl] += np.triu(model.weights_interlayer_sequential[recurrent_layer][li], k=1)
 
     # Hidden biases sequential
     if model.biases_sequential_units.size:
-        num_units_before_seq = ctx.spec.conv_active
+        num_units_before_seq = ctx.spec.conv_active[0] * model.num_recurrent_layers
         if model.pooling_type == "probabilistic":
+            raise NotImplementedError("Probabilistic QUBO with probabilistic pooling not implemented")
             num_units_before_seq = ctx.spec.conv_active + ctx.spec.n_pooled_units
         zeros_conv = np.zeros(num_units_before_seq, dtype=float)
         hid_bias = np.concatenate([zeros_conv, model.biases_sequential_units], axis=0)
@@ -53,16 +61,18 @@ def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
 
     # Hidden -> Output
     last_sl = ctx.last_hidden_slice
-    W_hy = model.weights_hidden_to_output
-    last_len = last_sl.stop - last_sl.start
-    if W_hy.shape[0] != last_len:
-        if model.pooling_type == "deterministic" and last_sl == ctx.slices.conv:
-            W_hy = W_hy[np.asarray(ctx.pooled_idx, dtype=int), :]
-        elif ctx.hidden_row_map is not None:
-            W_hy = W_hy[np.asarray(ctx.hidden_row_map, dtype=int), :]
-        else:
-            raise ValueError()
-    Q[last_sl, ctx.slices.out] += W_hy
+    for recurrent_layer in range(model.num_recurrent_layers):
+        W_hy = model.weights_hidden_to_output[recurrent_layer]
+        last_len = last_sl[recurrent_layer].stop - last_sl[recurrent_layer].start
+        if W_hy.shape[0] != last_len:
+            if model.pooling_type == "deterministic" and last_sl[recurrent_layer] == ctx.slices.conv[recurrent_layer]:
+                W_hy = W_hy[np.asarray(ctx.pooled_idx[recurrent_layer], dtype=int), :]
+            elif ctx.hidden_row_map is not None:
+                raise NotImplementedError("Unclamped QUBO with probabilistic pooling not implemented")
+                W_hy = W_hy[np.asarray(ctx.hidden_row_map, dtype=int), :]
+            else:
+                raise ValueError()
+        Q[last_sl[recurrent_layer], ctx.slices.out] += W_hy
 
     # output
     Q[ctx.slices.out, ctx.slices.out] += np.triu(model.weights_output_output, k=1)

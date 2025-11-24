@@ -45,6 +45,7 @@ class Conv_Deep_QBM(MODEL):
                             self.weights_hidden_to_output,
                             self.weights_output_output,
                             self.weights_interlayer_sequential,
+                            self.weights_seq_recurrent,
                             self.biases_conv_units,
                             self.biases_sequential_units,
                             self.biases_output] = self.init_params()
@@ -143,6 +144,7 @@ class Conv_Deep_QBM(MODEL):
         weights_sequential_layer = []
         weights_intralayer_sequential = []
         weights_hidden_to_output = []
+        weights_seq_recurrent = []
 
         for recurrent_layer in range(self.num_recurrent_layers):
             kernel_weights.append(np.random.uniform(-1, 1, (self.kernel_size, self.kernel_size)))
@@ -161,6 +163,10 @@ class Conv_Deep_QBM(MODEL):
                 weights_intralayer_sequential_current_recurrent.append(weights)
             weights_intralayer_sequential.append(weights_intralayer_sequential_current_recurrent)
 
+            for size in self.sequential_layer_sizes:
+                weights = np.random.uniform(-1, 1, (size, size))
+                weights_seq_recurrent.append(weights)
+
             # Last hidden -> output
             weights_hidden_to_output.append(
                 self.init_weights_hidden_to_output(self.num_active_units_per_layer[-1], self.num_lable_nodes)
@@ -176,7 +182,8 @@ class Conv_Deep_QBM(MODEL):
             weights_sequential_layer,
             weights_hidden_to_output,
             weights_output_output,
-            weights_intralayer_sequential
+            weights_intralayer_sequential,
+            weights_seq_recurrent
         )
 
     def init_biases(self):
@@ -203,7 +210,8 @@ class Conv_Deep_QBM(MODEL):
         weights_sequential_layer,
         weights_hidden_to_output,
         weights_output_output,
-        weights_interlayer_sequential
+        weights_interlayer_sequential,
+        weights_seq_recurrent
         ) = self.init_weights()
 
         (
@@ -218,6 +226,7 @@ class Conv_Deep_QBM(MODEL):
             weights_hidden_to_output,
             weights_output_output,
             weights_interlayer_sequential,
+            weights_seq_recurrent,
             biases_conv_units,
             biases_sequential_units,
             biases_output

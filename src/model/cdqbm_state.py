@@ -163,9 +163,11 @@ class Conv_Deep_QBM(MODEL):
                 weights_intralayer_sequential_current_recurrent.append(weights)
             weights_intralayer_sequential.append(weights_intralayer_sequential_current_recurrent)
 
+            weights_recurrent_current = []
             for size in self.sequential_layer_sizes:
                 weights = np.random.uniform(-1, 1, (size, size))
-                weights_seq_recurrent.append(weights)
+                weights_recurrent_current.append(weights)
+            weights_seq_recurrent.append(weights_recurrent_current)
 
             # Last hidden -> output
             weights_hidden_to_output.append(

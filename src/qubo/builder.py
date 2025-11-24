@@ -49,6 +49,19 @@ def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
             for li, cur_sl in enumerate(ctx.slices.seq_layers[recurrent_layer]):
                 Q[cur_sl, cur_sl] += np.triu(model.weights_interlayer_sequential[recurrent_layer][li], k=1)
 
+    # between-layer recurrent
+    for recurrent_layer in range(model.num_recurrent_layers - 1):
+        for seq_layer in range(ctx.slices.seq_layers[recurrent_layer]):
+            cur_sl = ctx.slices.seq_layers[recurrent_layer][seq_layer]
+            next_sl = ctx.slices.seq_layers[recurrent_layer + 1][seq_layer]
+            W_rec = model.weights_seq_recurrent[recurrent_layer][seq_layer]
+            Q[cur_sl, next_sl] += W_rec
+    for seq_layer in range(ctx.slices.seq_layers[0]):
+        cur_sl = ctx.slices.seq_layers[0][seq_layer]
+        next_sl = ctx.slices.seq_layers[-1][seq_layer]
+        W_rec = model.weights_seq_recurrent[-1][seq_layer]
+        Q[cur_sl, next_sl] += W_rec
+
     # Hidden biases sequential
     if model.biases_sequential_units.size:
         num_units_before_seq = ctx.spec.conv_active[0] * model.num_recurrent_layers
@@ -106,6 +119,19 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float) -> np
         if len(model.weights_interlayer_sequential) > 0:
             for li, cur_sl in enumerate(ctx.slices.seq_layers[recurrent_layer]):
                 Q[cur_sl, cur_sl] += np.triu(model.weights_interlayer_sequential[recurrent_layer][li], k=1)
+
+    # between-layer recurrent
+    for recurrent_layer in range(model.num_recurrent_layers - 1):
+        for seq_layer in range(ctx.slices.seq_layers[recurrent_layer]):
+            cur_sl = ctx.slices.seq_layers[recurrent_layer][seq_layer]
+            next_sl = ctx.slices.seq_layers[recurrent_layer + 1][seq_layer]
+            W_rec = model.weights_seq_recurrent[recurrent_layer][seq_layer]
+            Q[cur_sl, next_sl] += W_rec
+    for seq_layer in range(ctx.slices.seq_layers[0]):
+        cur_sl = ctx.slices.seq_layers[0][seq_layer]
+        next_sl = ctx.slices.seq_layers[-1][seq_layer]
+        W_rec = model.weights_seq_recurrent[-1][seq_layer]
+        Q[cur_sl, next_sl] += W_rec
 
     # Hidden biases sequential
     if model.biases_sequential_units.size:

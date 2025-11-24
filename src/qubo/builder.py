@@ -23,7 +23,7 @@ def _conv_linear_terms(model, ctx) -> np.ndarray:
     return base
 
 def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
-    n = ctx.spec.n_hidden + ctx.spec.n_out
+    n = model.spec.n_hidden + model.spec.n_out
     Q = np.zeros((n, n), dtype=float)
 
     if model.pooling_type == "probabilistic":
@@ -35,42 +35,42 @@ def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
     conv_biases = _conv_linear_terms(model, ctx)
     for recurrent_layer in range(model.num_recurrent_layers):
         conv_bias = conv_biases[recurrent_layer]
-        Q[ctx.slices.conv[recurrent_layer], ctx.slices.conv[recurrent_layer]] += np.diag(conv_bias)
+        Q[model.slices.conv[recurrent_layer], model.slices.conv[recurrent_layer]] += np.diag(conv_bias)
 
         # Sequential
-        prev_sl = ctx.slices.pool[recurrent_layer]
-        for li, cur_sl in enumerate(ctx.slices.seq_layers[recurrent_layer]):
+        prev_sl = model.slices.pool[recurrent_layer]
+        for li, cur_sl in enumerate(model.slices.seq_layers[recurrent_layer]):
             W = model.weights_sequential_layer[recurrent_layer][li]
             Q[prev_sl, cur_sl] += W
             prev_sl = cur_sl
 
         # within-layer
         if len(model.weights_interlayer_sequential) > 0:
-            for li, cur_sl in enumerate(ctx.slices.seq_layers[recurrent_layer]):
+            for li, cur_sl in enumerate(model.slices.seq_layers[recurrent_layer]):
                 Q[cur_sl, cur_sl] += np.triu(model.weights_interlayer_sequential[recurrent_layer][li], k=1)
 
     # between-layer recurrent
     for recurrent_layer in range(model.num_recurrent_layers - 1):
-        for seq_layer in range(len(ctx.slices.seq_layers[recurrent_layer])):
-            cur_sl = ctx.slices.seq_layers[recurrent_layer][seq_layer]
-            next_sl = ctx.slices.seq_layers[recurrent_layer + 1][seq_layer]
+        for seq_layer in range(len(model.slices.seq_layers[recurrent_layer])):
+            cur_sl = model.slices.seq_layers[recurrent_layer][seq_layer]
+            next_sl = model.slices.seq_layers[recurrent_layer + 1][seq_layer]
             W_rec = model.weights_seq_recurrent[recurrent_layer][seq_layer]
             Q[cur_sl, next_sl] += W_rec
-    for seq_layer in range(len(ctx.slices.seq_layers[0])):
-        cur_sl = ctx.slices.seq_layers[0][seq_layer]
-        next_sl = ctx.slices.seq_layers[-1][seq_layer]
+    for seq_layer in range(len(model.slices.seq_layers[0])):
+        cur_sl = model.slices.seq_layers[0][seq_layer]
+        next_sl = model.slices.seq_layers[-1][seq_layer]
         W_rec = model.weights_seq_recurrent[-1][seq_layer]
         Q[cur_sl, next_sl] += W_rec
 
     # Hidden biases sequential
     if model.biases_sequential_units.size:
-        num_units_before_seq = ctx.spec.conv_active[0] * model.num_recurrent_layers
+        num_units_before_seq = model.spec.conv_active[0] * model.num_recurrent_layers
         if model.pooling_type == "probabilistic":
             raise NotImplementedError("Probabilistic QUBO with probabilistic pooling not implemented")
-            num_units_before_seq = ctx.spec.conv_active + ctx.spec.n_pooled_units
+            num_units_before_seq = model.spec.conv_active + model.spec.n_pooled_units
         zeros_conv = np.zeros(num_units_before_seq, dtype=float)
         hid_bias = np.concatenate([zeros_conv, model.biases_sequential_units], axis=0)
-        Q[ctx.slices.hidden, ctx.slices.hidden] += np.diag(hid_bias)
+        Q[model.slices.hidden, model.slices.hidden] += np.diag(hid_bias)
 
     # Hidden -> Output
     last_sl = ctx.last_hidden_slice
@@ -78,24 +78,24 @@ def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
         W_hy = model.weights_hidden_to_output[recurrent_layer]
         last_len = last_sl[recurrent_layer].stop - last_sl[recurrent_layer].start
         if W_hy.shape[0] != last_len:
-            if model.pooling_type == "deterministic" and last_sl[recurrent_layer] == ctx.slices.conv[recurrent_layer]:
+            if model.pooling_type == "deterministic" and last_sl[recurrent_layer] == model.slices.conv[recurrent_layer]:
                 W_hy = W_hy[np.asarray(ctx.pooled_idx[recurrent_layer], dtype=int), :]
             elif ctx.hidden_row_map is not None:
                 raise NotImplementedError("Unclamped QUBO with probabilistic pooling not implemented")
                 W_hy = W_hy[np.asarray(ctx.hidden_row_map, dtype=int), :]
             else:
                 raise ValueError()
-        Q[last_sl[recurrent_layer], ctx.slices.out] += W_hy
+        Q[last_sl[recurrent_layer], model.slices.out] += W_hy
 
     # output
-    Q[ctx.slices.out, ctx.slices.out] += np.triu(model.weights_output_output, k=1)
-    Q[ctx.slices.out, ctx.slices.out] += np.diag(model.biases_output)
+    Q[model.slices.out, model.slices.out] += np.triu(model.weights_output_output, k=1)
+    Q[model.slices.out, model.slices.out] += np.diag(model.biases_output)
 
     return Q / float(beta_eff)
 
 
 def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float) -> np.ndarray:
-    n = ctx.spec.n_hidden
+    n = model.spec.n_hidden
     Q = np.zeros((n, n), dtype=float)
 
     if model.pooling_type == "probabilistic":
@@ -107,41 +107,41 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float) -> np
     conv_biases = _conv_linear_terms(model, ctx)
     for recurrent_layer in range(model.num_recurrent_layers):
         conv_bias = conv_biases[recurrent_layer]
-        Q[ctx.slices.conv[recurrent_layer], ctx.slices.conv[recurrent_layer]] += np.diag(conv_bias)
+        Q[model.slices.conv[recurrent_layer], model.slices.conv[recurrent_layer]] += np.diag(conv_bias)
         # Sequential
-        prev_sl = ctx.slices.pool[recurrent_layer]
-        for li, cur_sl in enumerate(ctx.slices.seq_layers[recurrent_layer]):
+        prev_sl = model.slices.pool[recurrent_layer]
+        for li, cur_sl in enumerate(model.slices.seq_layers[recurrent_layer]):
             W = model.weights_sequential_layer[recurrent_layer][li]
             Q[prev_sl, cur_sl] += W
             prev_sl = cur_sl
 
         # within-layer
         if len(model.weights_interlayer_sequential) > 0:
-            for li, cur_sl in enumerate(ctx.slices.seq_layers[recurrent_layer]):
+            for li, cur_sl in enumerate(model.slices.seq_layers[recurrent_layer]):
                 Q[cur_sl, cur_sl] += np.triu(model.weights_interlayer_sequential[recurrent_layer][li], k=1)
 
     # between-layer recurrent
     for recurrent_layer in range(model.num_recurrent_layers - 1):
-        for seq_layer in range(len(ctx.slices.seq_layers[recurrent_layer])):
-            cur_sl = ctx.slices.seq_layers[recurrent_layer][seq_layer]
-            next_sl = ctx.slices.seq_layers[recurrent_layer + 1][seq_layer]
+        for seq_layer in range(len(model.slices.seq_layers[recurrent_layer])):
+            cur_sl = model.slices.seq_layers[recurrent_layer][seq_layer]
+            next_sl = model.slices.seq_layers[recurrent_layer + 1][seq_layer]
             W_rec = model.weights_seq_recurrent[recurrent_layer][seq_layer]
             Q[cur_sl, next_sl] += W_rec
-    for seq_layer in range(len(ctx.slices.seq_layers[0])):
-        cur_sl = ctx.slices.seq_layers[0][seq_layer]
-        next_sl = ctx.slices.seq_layers[-1][seq_layer]
+    for seq_layer in range(len(model.slices.seq_layers[0])):
+        cur_sl = model.slices.seq_layers[0][seq_layer]
+        next_sl = model.slices.seq_layers[-1][seq_layer]
         W_rec = model.weights_seq_recurrent[-1][seq_layer]
         Q[cur_sl, next_sl] += W_rec
 
     # Hidden biases sequential
     if model.biases_sequential_units.size:
-        num_units_before_seq = ctx.spec.conv_active[0] * model.num_recurrent_layers
+        num_units_before_seq = model.spec.conv_active[0] * model.num_recurrent_layers
         if model.pooling_type == "probabilistic":
             raise NotImplementedError("Probabilistic QUBO with probabilistic pooling not implemented")
-            num_units_before_seq = ctx.spec.conv_active + ctx.spec.n_pooled_units
+            num_units_before_seq = model.spec.conv_active + model.spec.n_pooled_units
         zeros_conv = np.zeros(num_units_before_seq, dtype=float)
         hid_bias = np.concatenate([zeros_conv, model.biases_sequential_units], axis=0)
-        Q[ctx.slices.hidden, ctx.slices.hidden] += np.diag(hid_bias)
+        Q[model.slices.hidden, model.slices.hidden] += np.diag(hid_bias)
 
     # label bias
     for recurrent_layer in range(model.num_recurrent_layers):

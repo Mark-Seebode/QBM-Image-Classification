@@ -1,6 +1,9 @@
 # src/train.py
 from __future__ import annotations
 import numpy as np
+
+from src.model.geometry import conv2d_valid_stride
+from src.model.layers import pooled_indices_for_input, SeqSpec, StackSpec, build_slices
 from src.train.pipeline import run_unclamped, run_clamped
 from tqdm import tqdm
 
@@ -274,7 +277,6 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
 
                 loss = train_one_iteration(
                     model, xb, yb,
-                    num_reads=sample_count,
                     beta_eff=beta_eff,
                     lr=lr,
                     one_hot=one_hot,
@@ -288,4 +290,5 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
         tqdm.write(f"Epoch {epoch}/{epochs} finished - avg loss: {avg_loss:.4f}")
 
     return epoch_loss_list
+
 

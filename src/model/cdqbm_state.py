@@ -2,16 +2,18 @@ import random
 from pathlib import Path
 import pickle
 import numpy as np
+
+from src.model.layers import pooled_indices_for_input, SeqSpec, StackSpec, build_slices, BlockSlices
 from src.model.model_ab import MODEL
 from src.model.geometry import (
     conv_output_shape, get_input_groups_coords, build_pool_windows,
-    num_conv_units_from_dim, count_pooled_units
+    num_conv_units_from_dim, count_pooled_units, conv2d_valid_stride
 )
 from src.qubo.sampler import LocalSASampler, DWaveAdapter
 
 
 class Conv_Deep_QBM(MODEL):
-    def __init__(self, num_visible_nodes, num_lable_nodes, image_shape=(28,28), seed=77, kernel_size=3, pooling_size=0,
+    def __init__(self, num_visible_nodes, num_lable_nodes, example_image, image_shape=(28,28), seed=77, kernel_size=3, pooling_size=0,
                  pooling_type="deterministic", stride=1, sequential_layer_sizes=None, num_recurrent_layers=0,
                  param_string="", load_path="", speicherort=None, is_restricted=False,
                 hidden_bias_type="none", solver="SA", num_reads=100, anneal=1000, api_token="", groupQpuToken_name=""):
@@ -54,6 +56,9 @@ class Conv_Deep_QBM(MODEL):
 
         self.load_path = load_path
         self.speicherort = speicherort
+
+        self.spec: StackSpec = self.build_layer_indexing(example_image)
+        self.slices: BlockSlices = build_slices(self.spec)
 
         self.sampler = self.init_sampler(solver, num_reads, anneal, seed, api_token, groupQpuToken_name)
 
@@ -233,4 +238,34 @@ class Conv_Deep_QBM(MODEL):
             biases_sequential_units,
             biases_output
         )
+
+    def build_layer_indexing(self, example_image):
+        currentlayer_fmap_2d = conv2d_valid_stride(example_image, self.kernel_weights[0], self.stride)
+        currentlayer_fmap_flat = currentlayer_fmap_2d.ravel()
+
+        mock_pooled_idx = pooled_indices_for_input(
+            fmap_flat=currentlayer_fmap_flat,
+            num_conv_units=self.num_conv_units,
+            pooling_type=self.pooling_type,
+            pool_windows=getattr(self, "pool_windows", []),
+        )
+
+        conv_active = []
+        seq = []
+        num_pooled_units_per_recurrent_layer = []
+        for recurrent_layer in range(self.num_recurrent_layers):
+            conv_active.append(len(mock_pooled_idx) if self.pooling_type == "deterministic" else self.num_conv_units)
+            seq.append(SeqSpec(self.sequential_layer_sizes))
+            num_pooled_units_per_recurrent_layer.append(len(mock_pooled_idx))
+
+        spec = StackSpec(
+            conv_active=conv_active,
+            seq=seq,
+            n_out=self.num_lable_nodes,
+            pooling_type=self.pooling_type,
+            n_pooled_units=num_pooled_units_per_recurrent_layer,
+            num_recurrent_layers=self.num_recurrent_layers
+        )
+
+        return spec
 

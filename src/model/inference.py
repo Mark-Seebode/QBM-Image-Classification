@@ -22,7 +22,7 @@ def prepare_context(model, x_img) -> InferenceContext:
     num_pooled_units_per_recurrent_layer = []
 
     for recurrent_layer in range(model.num_recurrent_layers):
-        currentlayer_fmap_2d = conv2d_valid_stride(x_img, model.kernel_weights, model.stride)
+        currentlayer_fmap_2d = conv2d_valid_stride(x_img, model.kernel_weights[recurrent_layer], model.stride)
         currentlayer_fmap_flat = currentlayer_fmap_2d.ravel()
         fmap_2d.append(currentlayer_fmap_2d)
         fmap_flat.append(currentlayer_fmap_flat)

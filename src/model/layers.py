@@ -39,6 +39,7 @@ class BlockSlices:
     pool: list[slice]                 # [conv_active : conv_active + n_pooled) only if probabilistic else = conv
     seq_layers: list[Tuple[slice, ...]]
     hidden: slice                     # [0 : n_hidden) n_hidden = everything beside out
+    last_hidden: list[slice]
     out: slice                        # [n_hidden : n_hidden + n_out)
 
 def build_slices(spec: StackSpec) -> BlockSlices:
@@ -69,19 +70,20 @@ def build_slices(spec: StackSpec) -> BlockSlices:
         seq_layers.append(tuple(seq_slices))
 
     hidden_sl = slice(0, cur)
+    last_hidden_sl = last_hidden_slice(seq_layers, pool, spec.num_recurrent_layers)
     out_sl = slice(cur, cur + spec.n_out)
-
-    return BlockSlices(conv=conv, pool=pool, seq_layers=seq_layers, hidden=hidden_sl, out=out_sl)
-
+    return BlockSlices(conv=conv, pool=pool, seq_layers=seq_layers, hidden=hidden_sl, last_hidden=last_hidden_sl, out=out_sl)
 
 
-def last_hidden_slice(slices: BlockSlices) -> list[slice]:
+
+def last_hidden_slice(seq_layers, pool_slices, num_recurrent_layers) -> list[slice]:
     last_hidden_sl = []
-    if slices.seq_layers:
-        for seq_layer in slices.seq_layers:
-            last_hidden_sl.append(seq_layer[-1])
+    if len(seq_layers) < 0:
+        for i in range(num_recurrent_layers):
+            for seq_layer in seq_layers:
+                last_hidden_sl.append(seq_layer[i][-1])
     else:
-       last_hidden_sl = slices.conv
+       last_hidden_sl = pool_slices
     return last_hidden_sl
 
 

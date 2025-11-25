@@ -46,7 +46,7 @@ class Conv_Deep_QBM(MODEL):
                             self.weights_sequential_layer,
                             self.weights_hidden_to_output,
                             self.weights_output_output,
-                            self.weights_interlayer_sequential,
+                            self.weights_intralayer_sequential,
                             self.weights_seq_recurrent,
                             self.biases_conv_units,
                             self.biases_sequential_units,
@@ -266,6 +266,7 @@ class Conv_Deep_QBM(MODEL):
             n_pooled_units=num_pooled_units_per_recurrent_layer,
             num_recurrent_layers=self.num_recurrent_layers
         )
+
 
         return spec
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 import numpy as np
 
+from src.model.cdqbm_state import Conv_Deep_QBM
 from src.model.geometry import conv2d_valid_stride
 from src.model.layers import pooled_indices_for_input, SeqSpec, StackSpec, build_slices
 from src.train.pipeline import run_unclamped, run_clamped
@@ -25,7 +26,7 @@ def train_one_iteration(
     errors_biases_out = 0
     errors_weights_kernels = 0
     if not model.is_restricted:
-        errors_weights_interlayer_sequential = [0 for _ in model.weights_interlayer_sequential]
+        errors_weights_interlayer_sequential = [0 for _ in model.weights_intralayer_sequential]
     errors_weights_sequential = [0 for _ in model.sequential_layer_sizes]
     errors_weights_hidden_to_output = 0
     errors_weights_output_output = 0
@@ -88,8 +89,8 @@ def train_one_iteration(
         if not model.is_restricted:
             errors_weights_interlayer_sequential = \
             [errors_weights_interlayer_sequential[i] +
-                (avgs_weights_interlayer_sequential_c[i] - avgs_weights_interlayer_sequential_u[i])
-                for i in range(len(model.weights_interlayer_sequential))]
+             (avgs_weights_interlayer_sequential_c[i] - avgs_weights_interlayer_sequential_u[i])
+             for i in range(len(model.weights_intralayer_sequential))]
 
         errors_weights_sequential = \
             [errors_weights_sequential[i] +
@@ -121,9 +122,9 @@ def train_one_iteration(
 
     # self.weights_hidden_interlayer -= learning_rate * errors_weights_hidden_interlayer
     if not model.is_restricted:
-        model.weights_interlayer_sequential = [weights - lr * errors_weights
-                                              for weights, errors_weights in zip(model.weights_interlayer_sequential,
-                                                                                 errors_weights_interlayer_sequential)]
+        model.weights_intralayer_sequential = [weights - lr * errors_weights
+                                               for weights, errors_weights in zip(model.weights_intralayer_sequential,
+                                                                                  errors_weights_interlayer_sequential)]
 
     model.weights_sequential_layer = [weights - lr * errors_weights
                                      for weights, errors_weights in
@@ -134,21 +135,16 @@ def train_one_iteration(
     return tot_loss / max(1, n)
 
 
-def get_average_configuration_single(model, samples, x_input: np.ndarray, y: np.ndarray = None):
+def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.ndarray, y: np.ndarray = None):
     unclamped = y is None
     label = None if unclamped else np.array(y).flatten()
-
-    n_hidden = sum(model.num_active_units_per_layer[1:])
-    num_pooled_units = model.num_active_units_per_layer[1]
-    sizes_active = model.num_active_units_per_layer[1:]
-    starts = np.cumsum([0] + sizes_active[:-1])  # local starts per active layer
 
     avgs_biases_conv_units = np.zeros_like(model.biases_conv_units)
     avgs_biases_sequential = np.zeros_like(model.biases_sequential_units)
     avgs_biases_output = np.zeros_like(model.biases_output)
     avgs_kernel_weights = np.zeros_like(model.kernel_weights)
 
-    avgs_weights_interlayer_sequential = [np.zeros_like(w) for w in model.weights_interlayer_sequential] if not model.is_restricted else 0
+    avgs_weights_interlayer_sequential = [np.zeros_like(w) for w in model.weights_intralayer_sequential] if not model.is_restricted else 0
     avgs_weights_sequential_layers = [np.zeros_like(w) for w in model.weights_sequential_layer]
     avgs_weights_hidden_to_output = np.zeros_like(model.weights_hidden_to_output)
     avgs_weights_output_output = np.zeros_like(model.weights_output_output)
@@ -162,79 +158,85 @@ def get_average_configuration_single(model, samples, x_input: np.ndarray, y: np.
 
     avg_biases = sample_matrix.mean(axis=0)
 
-    if model.hidden_bias_type == "shared":
-            # deprecated only worked with old pyramid structure
-            # sum per layer into a shared bias slot
-            # start = 0
-            # for li in range(model.sequential_layer_sizes):
-            #     cnt = model.num_hidden_units_per_layer[li]
-            #     avgs_biases_conv_units[li] += np.sum(avg_biases[start:start + cnt])
-            #     start += cnt
-         avgs_biases_conv_units[0] += np.sum(avg_biases[:num_pooled_units]) #/ num_active_conv_units
-    elif model.hidden_bias_type == "none":
-        pass  # keep zeros
-    else:
-        # conv biases
-        pooled_idx = np.asarray(model.pooled_units, dtype=int)
-        pooled_marginals = avg_biases[:num_pooled_units]
-        avgs_biases_conv_units[pooled_idx] += pooled_marginals.astype(avgs_biases_conv_units.dtype)
+    for recurrent_layer in range(model.num_recurrent_layers):
+        if model.hidden_bias_type == "shared":
+                # deprecated only worked with old pyramid structure
+                # sum per layer into a shared bias slot
+                # start = 0
+                # for li in range(model.sequential_layer_sizes):
+                #     cnt = model.num_hidden_units_per_layer[li]
+                #     avgs_biases_conv_units[li] += np.sum(avg_biases[start:start + cnt])
+                #     start += cnt
 
-    avgs_biases_sequential += avg_biases[len(model.pool_windows):n_hidden]
+            avgs_biases_conv_units[recurrent_layer] += np.sum(avg_biases[model.slices.conv[recurrent_layer]]) #/ num_active_conv_units
+        elif model.hidden_bias_type == "none":
+            pass  # keep zeros
+        else: # case "individual
+            # conv biases
+            raise NotImplementedError("Individual hidden biases buggy")
+            pooled_idx = np.asarray(model.pooled_units, dtype=int)
+            pooled_marginals = avg_biases[:num_pooled_units]
+            avgs_biases_conv_units[pooled_idx] += pooled_marginals.astype(avgs_biases_conv_units.dtype)
+
+        avgs_biases_sequential[recurrent_layer] += avg_biases[model.slices.seq_layers[recurrent_layer]]
 
     if unclamped:
-        avgs_biases_output += avg_biases[n_hidden:]
+        avgs_biases_output += avg_biases[model.slices.out]
     else:
         avgs_biases_output += label
 
-    # Input units -> conv units
-    for i, h in enumerate(samples.ctx.pooled_idx): # TODO: not working with probabilistic pooling
-        rows, cols = model.input_groups[h]
-        patch = x_input[np.ix_(rows, cols)]
-        Eh = float(sample_matrix[:, i].mean())
-        avgs_kernel_weights += patch * Eh
+    for recurrent_layer in range(model.num_recurrent_layers):
+        # Input units -> conv units
+        for i, pool_id in enumerate(samples.ctx.pooled_idx[recurrent_layer]): # TODO: not working with probabilistic pooling
+            rows, cols = model.input_groups[pool_id]
+            patch = x_input[np.ix_(rows, cols)]
+            Eh = float(sample_matrix[:, i].mean())
+            avgs_kernel_weights += patch * Eh
 
-    #avgs_kernel_weights /= len(model.pooled_units)
+        #avgs_kernel_weights /= len(model.pooled_units)
 
-    if not model.is_restricted:
-        #within layer connections in the sequential layers:
-        for li, W in enumerate(model.weights_interlayer_sequential):
-            # indices of the li-th sequential layer block inside the hidden slice
-            cur_size = sizes_active[li + 1]  # sequential layer size
-            cur_s = int(starts[li + 1])  # start index of that layer in sample_matrix
-            cur_e = cur_s + cur_size
+        if model.slices.seq_layers[recurrent_layer] is not None:
+            # TODO: weights pooled to first seq layer are stored here at index 0 -> have to start at 1
+            #  at weights_sequential_layers. Use separate variable?
 
-            # samples over this layer: shape (num_reads, cur_size)
-            cur_block = sample_matrix[:, cur_s:cur_e]
+            # pooled units -> first sequential layer
+            pooled_block = sample_matrix[:, model.slices.pool[recurrent_layer]]
+            first_seq_block = sample_matrix[:, model.slices.seq_layers[recurrent_layer][0]]
+            avgs_weights_sequential_layers[recurrent_layer][0][:] = (pooled_block.T @ first_seq_block) / n_reads
 
-            # E[h_i h_j] as an average outer product (upper triangle only)
-            avg_outer = (cur_block.T @ cur_block) / n_reads
-            triu = np.triu_indices(cur_size, k=1)
-            avgs_weights_interlayer_sequential[li][triu] = avg_outer[triu]
+            # sequential layers -> sequential layers
+            for li in range(len(model.weights_sequential_layer[recurrent_layer]) - 1):
+                prev_slice = model.slices.seq_layers[recurrent_layer][li]
+                next_slice = model.slices.seq_layers[recurrent_layer][li + 1]
+                prev_block = sample_matrix[:, prev_slice]
+                next_block = sample_matrix[:, next_slice]
+                avgs_weights_sequential_layers[recurrent_layer][li + 1][:] = (prev_block.T @ next_block) / n_reads
 
-    # Sequential Layer
-    for li, _ in enumerate(model.weights_sequential_layer):
-        prev_size = sizes_active[li]
-        cur_size = sizes_active[li + 1]
-        prev_s = int(starts[li])
-        cur_s = int(starts[li + 1])
-        prev_block = sample_matrix[:, prev_s:prev_s + prev_size]  # (N, prev)
-        cur_block = sample_matrix[:, cur_s:cur_s + cur_size]  # (N, cur)
-        avgs_weights_sequential_layers[li][:] = (prev_block.T @ cur_block) / n_reads
+        if not model.is_restricted:
+            #within layer connections in the sequential layers:
+            for li, W in enumerate(model.weights_intralayer_sequential[recurrent_layer]):
+                # indices of the li-th sequential layer block inside the hidden slice
+                cur_slice = model.slices.seq_layers[recurrent_layer][li]
+                # samples over this layer: shape (num_reads, cur_size)
+                cur_block = sample_matrix[:, cur_slice]
 
-    last_hidden = sum(model.num_active_units_per_layer[1:-1]) + np.arange(model.num_active_units_per_layer[-1])
+                # E[h_i h_j] as an average outer product (upper triangle only)
+                avg_outer = (cur_block.T @ cur_block) / n_reads
+                triu = np.triu_indices(len(cur_slice), k=1)
+                avgs_weights_interlayer_sequential[li][triu] = avg_outer[triu]
+
+    last_hidden_slice = model.slices.last_hidden
     if unclamped:
-        for o in range(model.num_lable_nodes):
-            x_out = sample_matrix[:, n_hidden + o]  # E[y_o]
-            y_last = sample_matrix[:, last_hidden]  # all last hidden
-            avgs_weights_hidden_to_output[:, o] += (y_last.T @ x_out) / n_reads
+        x_out = sample_matrix[:, model.slices.out]  # E[y_o]
+        y_last = sample_matrix[:, last_hidden_slice]  # all last hidden
+        avgs_weights_hidden_to_output += (y_last.T @ x_out) / n_reads
     else:
         for o in range(model.num_lable_nodes):
-            for i_h, h in enumerate(last_hidden):
-                y_h = sample_matrix[:, h]
-                avgs_weights_hidden_to_output[i_h, o] += np.average(y_h * label[o])
+            y_last = sample_matrix[:, last_hidden_slice]
+            avgs_weights_hidden_to_output[:, o] += np.average(y_last * label[o])
 
     if unclamped:
-        yvars = sample_matrix[:, n_hidden:]
+        yvars = sample_matrix[:, model.slices.out]
         avg_outer = np.einsum('ni,nj->ij', yvars, yvars) / n_reads
         triu = np.triu_indices(model.num_lable_nodes, k=1)
         avgs_weights_output_output[triu] += avg_outer[triu]

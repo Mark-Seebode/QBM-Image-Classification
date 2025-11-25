@@ -45,9 +45,9 @@ def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
             prev_sl = cur_sl
 
         # within-layer
-        if len(model.weights_interlayer_sequential) > 0:
+        if len(model.weights_intralayer_sequential) > 0:
             for li, cur_sl in enumerate(model.slices.seq_layers[recurrent_layer]):
-                Q[cur_sl, cur_sl] += np.triu(model.weights_interlayer_sequential[recurrent_layer][li], k=1)
+                Q[cur_sl, cur_sl] += np.triu(model.weights_intralayer_sequential[recurrent_layer][li], k=1)
 
     # between-layer recurrent
     for recurrent_layer in range(model.num_recurrent_layers - 1):
@@ -116,9 +116,9 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float) -> np
             prev_sl = cur_sl
 
         # within-layer
-        if len(model.weights_interlayer_sequential) > 0:
+        if len(model.weights_intralayer_sequential) > 0:
             for li, cur_sl in enumerate(model.slices.seq_layers[recurrent_layer]):
-                Q[cur_sl, cur_sl] += np.triu(model.weights_interlayer_sequential[recurrent_layer][li], k=1)
+                Q[cur_sl, cur_sl] += np.triu(model.weights_intralayer_sequential[recurrent_layer][li], k=1)
 
     # between-layer recurrent
     for recurrent_layer in range(model.num_recurrent_layers - 1):

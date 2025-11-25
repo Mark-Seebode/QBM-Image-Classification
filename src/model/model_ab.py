@@ -10,7 +10,7 @@ class MODEL(metaclass=abc.ABCMeta):
         self.num_hidden_nodes: int = num_hidden_nodes
         self.num_visible : int = num_visible_nodes
 
-        self.num_lable_nodes = num_lable_nodes
+        self.num_label_nodes = num_lable_nodes
         self.seed: int = seed
 
         self.weight_objects = None

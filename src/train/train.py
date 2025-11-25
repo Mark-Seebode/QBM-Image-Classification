@@ -21,22 +21,22 @@ def train_one_iteration(
     one_hot: bool = False,
     print_every: int = 0,
 ):
-    errors_biases_conv = 0
-    errors_biases_seq = 0
-    errors_biases_out = 0
-    errors_weights_kernels = 0
-    if not model.is_restricted:
-        errors_weights_interlayer_sequential = [0 for _ in model.weights_intralayer_sequential]
-    errors_weights_sequential = [0 for _ in model.sequential_layer_sizes]
-    errors_weights_hidden_to_output = 0
-    errors_weights_output_output = 0
+    errors_biases_conv = np.zeros_like(model.biases_conv_units)
+    errors_biases_seq = np.zeros_like(model.biases_sequential_units)
+    errors_biases_out = np.zeros_like(model.biases_output)
+
+    errors_weights_kernels = np.zeros_like(model.kernel_weights)
+    errors_weights_interlayer_sequential = [np.zeros_like(w) for w in model.weights_intralayer_sequential] if not model.is_restricted else 0
+    errors_weights_sequential = [np.zeros_like(w) for w in model.weights_sequential_layer]
+    errors_weights_hidden_to_output = np.zeros_like(model.weights_hidden_to_output)
+    errors_weights_output_output = np.zeros_like(model.weights_output_output)
 
     n = len(X)
     tot_loss, tot_err = 0.0, 0.0
 
     for i, (x, y) in enumerate(zip(X, Y), 1):
         if one_hot:
-            lab = np.zeros(model.num_lable_nodes, dtype=float)
+            lab = np.zeros(model.num_label_nodes, dtype=float)
             lab[int(y)] = 1.0
         else:
             lab = np.array([int(y)], dtype=float)
@@ -76,60 +76,62 @@ def train_one_iteration(
             avgs_weights_output_output_u
         ) = get_average_configuration_single(model, out_u, x)
 
-        errors_biases_conv += (avgs_biases_conv_units_c - avgs_biases_conv_units_u)
+        for recurrent_layer in range(model.num_recurrent_layers):
 
-        errors_biases_seq += (avgs_biases_sequential_c - avgs_biases_sequential_u)
+            errors_biases_conv[recurrent_layer] += (avgs_biases_conv_units_c[recurrent_layer] - avgs_biases_conv_units_u[recurrent_layer])
 
-        errors_biases_out += (avgs_biases_output_c - avgs_biases_output_u)
+            errors_biases_seq[recurrent_layer] += (avgs_biases_sequential_c[recurrent_layer] - avgs_biases_sequential_u[recurrent_layer])
 
-        errors_weights_kernels += (avgs_kernel_weights_c - avgs_kernel_weights_u)
+            errors_biases_out[recurrent_layer] += (avgs_biases_output_c[recurrent_layer] - avgs_biases_output_u[recurrent_layer])
 
-        # errors_weights_hidden_interlayer += (
-        #           avgs_clamped_weights_hidden_interlayer - avgs_unclamped_weights_hidden_interlayer)
-        if not model.is_restricted:
-            errors_weights_interlayer_sequential = \
-            [errors_weights_interlayer_sequential[i] +
-             (avgs_weights_interlayer_sequential_c[i] - avgs_weights_interlayer_sequential_u[i])
-             for i in range(len(model.weights_intralayer_sequential))]
+            errors_weights_kernels[recurrent_layer] += (avgs_kernel_weights_c[recurrent_layer] - avgs_kernel_weights_u[recurrent_layer])
 
-        errors_weights_sequential = \
-            [errors_weights_sequential[i] +
-             (avgs_weights_sequential_layers_c[i] - avgs_weights_sequential_layers_u[i])
-             for i in range(len(model.sequential_layer_sizes))]
+            # errors_weights_hidden_interlayer += (
+            #           avgs_clamped_weights_hidden_interlayer - avgs_unclamped_weights_hidden_interlayer)
+            # remains zero if restricted
+            errors_weights_interlayer_sequential[recurrent_layer] = \
+            [errors_weights_interlayer_sequential[recurrent_layer][i] +
+                (avgs_weights_interlayer_sequential_c[recurrent_layer][i] - avgs_weights_interlayer_sequential_u[recurrent_layer][i])
+                for i in range(len(model.weights_intralayer_sequential[recurrent_layer]))]
 
-        errors_weights_hidden_to_output += (avgs_weights_hidden_to_output_c - avgs_weights_hidden_to_output_u)
+            errors_weights_sequential[recurrent_layer] = \
+                [errors_weights_sequential[recurrent_layer][i] +
+                 (avgs_weights_sequential_layers_c[recurrent_layer][i] - avgs_weights_sequential_layers_u[recurrent_layer][i])
+                 for i in range(len(model.sequential_layer_sizes))]
+
+            errors_weights_hidden_to_output[recurrent_layer] += (avgs_weights_hidden_to_output_c[recurrent_layer] - avgs_weights_hidden_to_output_u[recurrent_layer])
 
         errors_weights_output_output += (avgs_weights_output_output_c - avgs_weights_output_output_u)
 
-    errors_biases_conv /= X.shape[0]
-    errors_biases_seq /= X.shape[0]
-    errors_biases_out /= X.shape[0]
-    errors_weights_kernels /= X.shape[0]
+    for recurrent_layer in range(model.num_recurrent_layers):
+        errors_biases_conv[recurrent_layer] /= X.shape[0]
+        errors_biases_seq[recurrent_layer] /= X.shape[0]
+        errors_biases_out[recurrent_layer] /= X.shape[0]
+        errors_weights_kernels[recurrent_layer] /= X.shape[0]
 
-    # errors_weights_hidden_interlayer /= x_batch.shape[0]
-    if not model.is_restricted:
-        errors_weights_interlayer_sequential = [error / X.shape[0] for error in errors_weights_interlayer_sequential]
+        # errors_weights_hidden_interlayer /= x_batch.shape[0]
+        errors_weights_interlayer_sequential[recurrent_layer] = [error / X.shape[0] for error in errors_weights_interlayer_sequential[recurrent_layer]]
 
-    errors_weights_sequential = [error / X.shape[0] for error in errors_weights_sequential]
-    errors_weights_hidden_to_output /= X.shape[0]
-    errors_weights_output_output /= X.shape[0]
+        errors_weights_sequential[recurrent_layer] = [error / X.shape[0] for error in errors_weights_sequential[recurrent_layer]]
+        errors_weights_hidden_to_output[recurrent_layer] /= X.shape[0]
+        errors_weights_output_output[recurrent_layer] /= X.shape[0]
 
-    model.biases_conv_units -= lr * errors_biases_conv
-    model.biases_sequential_units -= lr * errors_biases_seq
-    model.biases_output -= lr * errors_biases_out
+        model.biases_conv_units[recurrent_layer] -= lr * errors_biases_conv[recurrent_layer]
+        model.biases_sequential_units[recurrent_layer] -= lr * errors_biases_seq[recurrent_layer]
+        model.biases_output[recurrent_layer] -= lr * errors_biases_out[recurrent_layer]
 
-    model.kernel_weights -= lr * errors_weights_kernels
+        model.kernel_weights[recurrent_layer] -= lr * errors_weights_kernels[recurrent_layer]
 
-    # self.weights_hidden_interlayer -= learning_rate * errors_weights_hidden_interlayer
-    if not model.is_restricted:
-        model.weights_intralayer_sequential = [weights - lr * errors_weights
-                                               for weights, errors_weights in zip(model.weights_intralayer_sequential,
-                                                                                  errors_weights_interlayer_sequential)]
+        # self.weights_hidden_interlayer -= learning_rate * errors_weights_hidden_interlayer
+        model.weights_intralayer_sequential[recurrent_layer] = [weights - lr * errors_weights
+                                               for weights, errors_weights in zip(model.weights_intralayer_sequential[recurrent_layer],
+                                                                                  errors_weights_interlayer_sequential[recurrent_layer])]
 
-    model.weights_sequential_layer = [weights - lr * errors_weights
-                                     for weights, errors_weights in
-                                     zip(model.weights_sequential_layer, errors_weights_sequential)]
-    model.weights_hidden_to_output -= lr * errors_weights_hidden_to_output
+        model.weights_sequential_layer = [weights - lr * errors_weights
+                                        for weights, errors_weights in
+                                        zip(model.weights_sequential_layer[recurrent_layer], errors_weights_sequential[recurrent_layer])]
+        model.weights_hidden_to_output[recurrent_layer] -= lr * errors_weights_hidden_to_output[recurrent_layer]
+
     model.weights_output_output -= lr * errors_weights_output_output
 
     return tot_loss / max(1, n)
@@ -142,8 +144,8 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
     avgs_biases_conv_units = np.zeros_like(model.biases_conv_units)
     avgs_biases_sequential = np.zeros_like(model.biases_sequential_units)
     avgs_biases_output = np.zeros_like(model.biases_output)
-    avgs_kernel_weights = np.zeros_like(model.kernel_weights)
 
+    avgs_kernel_weights = np.zeros_like(model.kernel_weights)
     avgs_weights_interlayer_sequential = [np.zeros_like(w) for w in model.weights_intralayer_sequential] if not model.is_restricted else 0
     avgs_weights_sequential_layers = [np.zeros_like(w) for w in model.weights_sequential_layer]
     avgs_weights_hidden_to_output = np.zeros_like(model.weights_hidden_to_output)
@@ -231,18 +233,18 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
         y_last = sample_matrix[:, last_hidden_slice]  # all last hidden
         avgs_weights_hidden_to_output += (y_last.T @ x_out) / n_reads
     else:
-        for o in range(model.num_lable_nodes):
+        for o in range(model.num_label_nodes):
             y_last = sample_matrix[:, last_hidden_slice]
             avgs_weights_hidden_to_output[:, o] += np.average(y_last * label[o])
 
     if unclamped:
         yvars = sample_matrix[:, model.slices.out]
         avg_outer = np.einsum('ni,nj->ij', yvars, yvars) / n_reads
-        triu = np.triu_indices(model.num_lable_nodes, k=1)
+        triu = np.triu_indices(model.num_label_nodes, k=1)
         avgs_weights_output_output[triu] += avg_outer[triu]
     else:
         outer = np.outer(label, label)
-        triu = np.triu_indices(model.num_lable_nodes, k=1)
+        triu = np.triu_indices(model.num_label_nodes, k=1)
         avgs_weights_output_output[triu] += outer[triu]
 
     return (

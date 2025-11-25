@@ -176,12 +176,12 @@ class Conv_Deep_QBM(MODEL):
 
             # Last hidden -> output
             weights_hidden_to_output.append(
-                self.init_weights_hidden_to_output(self.num_active_units_per_layer[-1], self.num_lable_nodes)
+                self.init_weights_hidden_to_output(self.num_active_units_per_layer[-1], self.num_label_nodes)
             )
 
         # output -> output
         weights_output_output = np.triu(
-            np.random.uniform(-1, 1, (self.num_lable_nodes, self.num_lable_nodes)), k=1
+            np.random.uniform(-1, 1, (self.num_label_nodes, self.num_label_nodes)), k=1
         )
 
         return (
@@ -206,7 +206,7 @@ class Conv_Deep_QBM(MODEL):
 
         biases_sequential_units = np.random.uniform(-1, 1, sum(self.sequential_layer_sizes) * self.num_recurrent_layers)
 
-        biases_output = np.random.uniform(-1, 1, self.num_lable_nodes)
+        biases_output = np.random.uniform(-1, 1, self.num_label_nodes)
 
         return biases_conv_units, biases_sequential_units, biases_output
 
@@ -261,7 +261,7 @@ class Conv_Deep_QBM(MODEL):
         spec = StackSpec(
             conv_active=conv_active,
             seq=seq,
-            n_out=self.num_lable_nodes,
+            n_out=self.num_label_nodes,
             pooling_type=self.pooling_type,
             n_pooled_units=num_pooled_units_per_recurrent_layer,
             num_recurrent_layers=self.num_recurrent_layers

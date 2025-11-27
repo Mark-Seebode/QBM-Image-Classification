@@ -252,7 +252,8 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
 
                 # E[h_i h_j] as an average outer product (upper triangle only)
                 avg_outer = (cur_block.T @ cur_block) / n_reads
-                triu = np.triu_indices(cur_slice, k=1)
+                size = cur_slice.stop - cur_slice.start
+                triu = np.triu_indices(size, k=1)
                 avgs_weights_interlayer_sequential[recurrent_layer][li][triu] = avg_outer[triu]
 
     last_hidden_slice = model.slices.last_hidden

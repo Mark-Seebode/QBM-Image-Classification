@@ -78,10 +78,9 @@ def build_slices(spec: StackSpec) -> BlockSlices:
 
 def last_hidden_slice(seq_layers, pool_slices, num_recurrent_layers) -> list[slice]:
     last_hidden_sl = []
-    if len(seq_layers) < 0:
-        for i in range(num_recurrent_layers):
-            for seq_layer in seq_layers:
-                last_hidden_sl.append(seq_layer[i][-1])
+    if len(seq_layers[0]) > 0:
+        for seq_layer in seq_layers:
+            last_hidden_sl.append(seq_layer[-1])
     else:
        last_hidden_sl = pool_slices
     return last_hidden_sl

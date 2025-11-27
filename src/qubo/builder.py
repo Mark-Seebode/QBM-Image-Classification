@@ -5,13 +5,13 @@ def _conv_linear_terms(model, ctx) -> np.ndarray:
     bases = []
     if model.pooling_type == "deterministic":
         for recurrent_layer in range(model.num_recurrent_layers):
-            base = ctx.fmap_flat[recurrent_layer][ctx.pooled_idx]
+            base = ctx.fmap_flat[recurrent_layer][ctx.pooled_idx[recurrent_layer]]
             if model.hidden_bias_type == "shared":
                 base = base + model.biases_conv_units[recurrent_layer][0]
             elif model.hidden_bias_type != "none":
                 base = base
             bases.append(base)
-        return np.concatenate(bases, axis=0)
+        return np.array(bases)
     raise NotImplementedError("Not implemented for probabilistic pooling")
     # probabilistic -> all conv units active
     base = ctx.fmap_flat.copy()
@@ -35,7 +35,8 @@ def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
     conv_biases = _conv_linear_terms(model, ctx)
     for recurrent_layer in range(model.num_recurrent_layers):
         conv_bias = conv_biases[recurrent_layer]
-        Q[model.slices.conv[recurrent_layer], model.slices.conv[recurrent_layer]] += np.diag(conv_bias)
+        conv_bias = np.diag(conv_bias)
+        Q[model.slices.conv[recurrent_layer], model.slices.conv[recurrent_layer]] += conv_bias
 
         # Sequential
         prev_sl = model.slices.pool[recurrent_layer]
@@ -63,17 +64,16 @@ def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
         Q[cur_sl, next_sl] += W_rec
 
     # Hidden biases sequential
-    if model.biases_sequential_units.size:
-        num_units_before_seq = model.spec.conv_active[0] * model.num_recurrent_layers
+    if len(model.biases_sequential_units) > 0:
         if model.pooling_type == "probabilistic":
             raise NotImplementedError("Probabilistic QUBO with probabilistic pooling not implemented")
             num_units_before_seq = model.spec.conv_active + model.spec.n_pooled_units
-        zeros_conv = np.zeros(num_units_before_seq, dtype=float)
-        hid_bias = np.concatenate([zeros_conv, model.biases_sequential_units], axis=0)
-        Q[model.slices.hidden, model.slices.hidden] += np.diag(hid_bias)
+        for recurrent_layer in range(model.num_recurrent_layers):
+            for s, seq_sl in enumerate(model.slices.seq_layers[recurrent_layer]):
+                Q[seq_sl, seq_sl] += np.diag(model.biases_sequential_units[recurrent_layer][s])
 
     # Hidden -> Output
-    last_sl = ctx.last_hidden_slice
+    last_sl = model.slices.last_hidden
     for recurrent_layer in range(model.num_recurrent_layers):
         W_hy = model.weights_hidden_to_output[recurrent_layer]
         last_len = last_sl[recurrent_layer].stop - last_sl[recurrent_layer].start
@@ -134,18 +134,18 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float) -> np
         Q[cur_sl, next_sl] += W_rec
 
     # Hidden biases sequential
-    if model.biases_sequential_units.size:
+    if len(model.biases_sequential_units) > 0:
         num_units_before_seq = model.spec.conv_active[0] * model.num_recurrent_layers
         if model.pooling_type == "probabilistic":
             raise NotImplementedError("Probabilistic QUBO with probabilistic pooling not implemented")
             num_units_before_seq = model.spec.conv_active + model.spec.n_pooled_units
-        zeros_conv = np.zeros(num_units_before_seq, dtype=float)
-        hid_bias = np.concatenate([zeros_conv, model.biases_sequential_units], axis=0)
-        Q[model.slices.hidden, model.slices.hidden] += np.diag(hid_bias)
+        for recurrent_layer in range(model.num_recurrent_layers):
+            for s, seq_sl in enumerate(model.slices.seq_layers[recurrent_layer]):
+                Q[seq_sl, seq_sl] += np.diag(model.biases_sequential_units[recurrent_layer][s])
 
     # label bias
     for recurrent_layer in range(model.num_recurrent_layers):
-        last_sl = ctx.last_hidden_slice[recurrent_layer]
+        last_sl = model.slices.last_hidden[recurrent_layer]
         eff = (model.weights_hidden_to_output[recurrent_layer] @ label_vec.reshape(-1, 1)).reshape(-1)
         Q[last_sl, last_sl] += np.diag(eff)
 

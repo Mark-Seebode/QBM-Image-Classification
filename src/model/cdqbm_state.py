@@ -204,7 +204,10 @@ class Conv_Deep_QBM(MODEL):
             else: # self.hidden_bias_type == "individual"
                 biases_conv_units.append(np.random.uniform(-1, 1, self.num_conv_units))
 
-        biases_sequential_units = np.random.uniform(-1, 1, sum(self.sequential_layer_sizes) * self.num_recurrent_layers)
+            sequential_biases_current_recurrent = []
+            for size in self.sequential_layer_sizes:
+                sequential_biases_current_recurrent.append(np.random.uniform(-1, 1, size))
+            biases_sequential_units.append(sequential_biases_current_recurrent)
 
         biases_output = np.random.uniform(-1, 1, self.num_label_nodes)
 

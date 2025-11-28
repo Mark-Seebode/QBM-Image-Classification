@@ -14,8 +14,8 @@ from src.qubo.sampler import LocalSASampler, DWaveAdapter
 
 class Conv_Deep_QBM(MODEL):
     def __init__(self, num_visible_nodes, num_lable_nodes, example_image, image_shape=(28,28), seed=77, kernel_size=3, pooling_size=0,
-                 pooling_type="deterministic", stride=1, sequential_layer_sizes=None, num_recurrent_layers=0,
-                 param_string="", load_path="", speicherort=None, is_restricted=False,
+                 pooling_type="deterministic", stride=1, sequential_layer_sizes=None, num_recurrent_layers=0, is_recurrent_weights=False,
+                 param_string="", load_path="", speicherort=None, is_restricted=False, parallelize=False,
                 hidden_bias_type="none", solver="SA", num_reads=100, anneal=1000, api_token="", groupQpuToken_name=""):
 
         self.kernel_size = kernel_size
@@ -50,7 +50,7 @@ class Conv_Deep_QBM(MODEL):
                             self.weights_seq_recurrent,
                             self.biases_conv_units,
                             self.biases_sequential_units,
-                            self.biases_output] = self.init_params()
+                            self.biases_output] = self.init_params(is_recurrent_weights)
 
         self.param_string = param_string
 
@@ -60,15 +60,15 @@ class Conv_Deep_QBM(MODEL):
         self.spec: StackSpec = self.build_layer_indexing(example_image)
         self.slices: BlockSlices = build_slices(self.spec)
 
-        self.sampler = self.init_sampler(solver, num_reads, anneal, seed, api_token, groupQpuToken_name)
+        self.sampler = self.init_sampler(solver, num_reads, anneal, parallelize, seed, api_token, groupQpuToken_name)
 
 
-    def init_sampler(self, solver="SA", num_reads=100, anneal=1000, seed=77, api_token="", groupQpuToken_name=""):
+    def init_sampler(self, solver="SA", num_reads=100, anneal=1000, parallelize=False, seed=77, api_token="", groupQpuToken_name=""):
         # -------------------
         # Sampler
         # -------------------
         if solver.upper() == "SA":
-            sampler = LocalSASampler(num_reads=num_reads, num_sweeps=anneal, seed=seed)
+            sampler = LocalSASampler(num_reads=num_reads, num_sweeps=anneal, parallelize=parallelize, seed=seed)
         else:
             sampler = DWaveAdapter(
                 solver=solver,
@@ -141,7 +141,7 @@ class Conv_Deep_QBM(MODEL):
         return weights
 
 
-    def init_weights(self):
+    def init_weights(self, is_recurrent_weights: bool):
         random.seed(self.seed)
         np.random.seed(self.seed)
 
@@ -168,12 +168,20 @@ class Conv_Deep_QBM(MODEL):
                 weights_intralayer_sequential_current_recurrent.append(weights)
             weights_intralayer_sequential.append(weights_intralayer_sequential_current_recurrent)
 
-            weights_recurrent_current = []
-            for size in self.sequential_layer_sizes:
-                weights = np.random.uniform(-1, 1, (size, size))
-                weights_recurrent_current.append(weights)
-            weights_seq_recurrent.append(weights_recurrent_current)
+            if is_recurrent_weights:
+                weights_recurrent_current = []
+                for size in self.sequential_layer_sizes:
+                    weights = np.random.uniform(-1, 1, (size, size))
+                    weights_recurrent_current.append(weights)
+                weights_seq_recurrent.append(weights_recurrent_current)
 
+                if recurrent_layer == 1 and self.num_recurrent_layers == 2:
+                    # first to last
+                    weights_recurrent_current = []
+                    for size in self.sequential_layer_sizes:
+                        weights = np.zeros((size, size))
+                        weights_recurrent_current.append(weights)
+                    weights_seq_recurrent.append(weights_recurrent_current)
             # Last hidden -> output
             weights_hidden_to_output.append(
                 self.init_weights_hidden_to_output(self.num_active_units_per_layer[-1], self.num_label_nodes)
@@ -214,7 +222,7 @@ class Conv_Deep_QBM(MODEL):
         return biases_conv_units, biases_sequential_units, biases_output
 
 
-    def init_params(self):
+    def init_params(self, is_recurrent_weights=False):
         (
         kernel_weights,
         weights_sequential_layer,
@@ -222,7 +230,7 @@ class Conv_Deep_QBM(MODEL):
         weights_output_output,
         weights_interlayer_sequential,
         weights_seq_recurrent
-        ) = self.init_weights()
+        ) = self.init_weights(is_recurrent_weights)
 
         (
         biases_conv_units,

@@ -57,11 +57,13 @@ def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
             next_sl = model.slices.seq_layers[recurrent_layer + 1][seq_layer]
             W_rec = model.weights_seq_recurrent[recurrent_layer][seq_layer]
             Q[cur_sl, next_sl] += W_rec
-    for seq_layer in range(len(model.slices.seq_layers[0])):
-        cur_sl = model.slices.seq_layers[0][seq_layer]
-        next_sl = model.slices.seq_layers[-1][seq_layer]
-        W_rec = model.weights_seq_recurrent[-1][seq_layer]
-        Q[cur_sl, next_sl] += W_rec
+
+    if model.num_recurrent_layers > 2:
+        for seq_layer in range(len(model.slices.seq_layers[0])):
+            cur_sl = model.slices.seq_layers[0][seq_layer]
+            next_sl = model.slices.seq_layers[-1][seq_layer]
+            W_rec = model.weights_seq_recurrent[-1][seq_layer]
+            Q[cur_sl, next_sl] += W_rec
 
     # Hidden biases sequential
     if len(model.biases_sequential_units) > 0:
@@ -127,11 +129,13 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float) -> np
             next_sl = model.slices.seq_layers[recurrent_layer + 1][seq_layer]
             W_rec = model.weights_seq_recurrent[recurrent_layer][seq_layer]
             Q[cur_sl, next_sl] += W_rec
-    for seq_layer in range(len(model.slices.seq_layers[0])):
-        cur_sl = model.slices.seq_layers[0][seq_layer]
-        next_sl = model.slices.seq_layers[-1][seq_layer]
-        W_rec = model.weights_seq_recurrent[-1][seq_layer]
-        Q[cur_sl, next_sl] += W_rec
+    #first to last
+    if model.num_recurrent_layers > 2:
+        for seq_layer in range(len(model.slices.seq_layers[0])):
+            cur_sl = model.slices.seq_layers[0][seq_layer]
+            next_sl = model.slices.seq_layers[-1][seq_layer]
+            W_rec = model.weights_seq_recurrent[-1][seq_layer]
+            Q[cur_sl, next_sl] += W_rec
 
     # Hidden biases sequential
     if len(model.biases_sequential_units) > 0:
@@ -151,8 +155,6 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float) -> np
 
     return Q / float(beta_eff)
 
-
-import numpy as np
 
 
 def add_at_most_one_penalty_upper(model, qubo, penalty):

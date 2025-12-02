@@ -57,7 +57,7 @@ class Conv_Deep_QBM(MODEL):
         self.load_path = load_path
         self.speicherort = speicherort
 
-        self.spec: StackSpec = self.build_layer_indexing(example_image)
+        self.spec: StackSpec = self.build_layer_indexing(example_image, is_recurrent_weights)
         self.slices: BlockSlices = build_slices(self.spec)
 
         self.sampler = self.init_sampler(solver, num_reads, anneal, parallelize, seed, api_token, groupQpuToken_name)
@@ -308,7 +308,7 @@ class Conv_Deep_QBM(MODEL):
             biases_output
         )
 
-    def build_layer_indexing(self, example_image):
+    def build_layer_indexing(self, example_image, is_recurrent_weights=False) ->  StackSpec:
         currentlayer_fmap_2d = conv2d_valid_stride(example_image, self.kernel_weights[0], self.stride)
         currentlayer_fmap_flat = currentlayer_fmap_2d.ravel()
 
@@ -333,7 +333,8 @@ class Conv_Deep_QBM(MODEL):
             n_out=self.num_label_nodes,
             pooling_type=self.pooling_type,
             n_pooled_units=num_pooled_units_per_recurrent_layer,
-            num_recurrent_layers=self.num_filter_kernels
+            num_recurrent_layers=self.num_filter_kernels if is_recurrent_weights else 1,
+            num_filter_kernels=self.num_filter_kernels
         )
 
 

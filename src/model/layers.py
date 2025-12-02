@@ -16,15 +16,17 @@ class StackSpec:
     pooling_type: str             # "deterministic" | "probabilistic"
     n_pooled_units: list[int]
     num_recurrent_layers: int
+    num_filter_kernels: int
 
     @property
     def n_hidden(self) -> int:
         if self.pooling_type == "deterministic":
             sum = 0
-            for recurrent_layer in range(self.num_recurrent_layers):
-                sum += self.conv_active[recurrent_layer]
-                for s in self.seq[recurrent_layer].sizes:
-                    sum += s
+            for c in self.conv_active:
+                sum += c
+            for s in self.seq:
+                for size in s.sizes:
+                    sum += size
             return sum
         elif self.pooling_type == "probabilistic":
             raise NotImplementedError("n_hidden property not implemented for probabilistic pooling")
@@ -40,40 +42,60 @@ class BlockSlices:
     seq_layers: list[Tuple[slice, ...]]
     hidden: slice                     # [0 : n_hidden) n_hidden = everything beside out
     last_hidden: list[slice]
-    out: slice                        # [n_hidden : n_hidden + n_out)
+    out: slice                          # [n_hidden : n_hidden + n_out)
 
-def build_slices(spec: StackSpec) -> BlockSlices:
+
+def build_conv_slices(spec: StackSpec):
     conv = []
-    pool = []
-    seq_layers = []
-    cur = 0
-    for recurrent_layer in range(spec.num_recurrent_layers):
+    idx = 0
+    for c in spec.conv_active:
         # convolutional layer slice
-        conv_sl = slice(cur, cur + spec.conv_active[recurrent_layer])
+        conv_sl = slice(idx, idx + c)
         conv.append(conv_sl)
+        idx += c
+    return conv, idx
 
+
+def build_pool_slices(spec: StackSpec, conv: list[slice], idx: int):
+    pool = []
+    for i in range(spec.num_filter_kernels):
         if spec.pooling_type == "deterministic":
-            pool_sl = conv_sl
+            pool_sl = conv[i]
             pool.append(pool_sl)
-            cur += spec.conv_active[recurrent_layer]
+            idx += spec.conv_active[i]
         elif spec.pooling_type == "probabilistic":
-            raise NotImplementedError ("build_slices not implemented for probabilistic pooling with multiple recurrent layers")
+            raise NotImplementedError(
+                "build_slices not implemented for probabilistic pooling with multiple recurrent layers")
             pool_sl = slice(spec.conv_active, spec.conv_active + spec.n_pooled_units)
-            cur += spec.conv_active + spec.n_pooled_units
+            idx += spec.conv_active + spec.n_pooled_units
         else:
             raise ValueError(f"Unknown pooling_type: {spec.pooling_type}")
 
+    return pool, idx
+
+
+def build_seq_slices(spec: StackSpec, idx: int):
+    seq_layers = []
+    for recurrent_layer in range(spec.num_recurrent_layers):
         seq_slices: List[slice] = []
-        for s in spec.seq[recurrent_layer].sizes:
-            seq_slices.append(slice(cur, cur + s))
-            cur += s
+        for s in spec.seq:
+            for size in s.sizes:
+                seq_slices.append(slice(idx, idx + size))
+                idx += size
         seq_layers.append(tuple(seq_slices))
 
-    hidden_sl = slice(0, cur)
-    last_hidden_sl = last_hidden_slice(seq_layers, pool, spec.num_recurrent_layers)
-    out_sl = slice(cur, cur + spec.n_out)
-    return BlockSlices(conv=conv, pool=pool, seq_layers=seq_layers, hidden=hidden_sl, last_hidden=last_hidden_sl, out=out_sl)
+    return seq_layers, idx
 
+
+def build_slices(spec: StackSpec) -> BlockSlices:
+    conv, idx = build_conv_slices(spec)
+    pool, idx = build_pool_slices(spec, conv, idx)
+    seq_layers, idx = build_seq_slices(spec, idx)
+    hidden_sl = slice(0, idx)
+    last_hidden_sl = last_hidden_slice(seq_layers, pool, spec.num_recurrent_layers)
+    out_sl = slice(idx, idx + spec.n_out)
+
+    return BlockSlices(conv=conv, pool=pool, seq_layers=seq_layers, hidden=hidden_sl, last_hidden=last_hidden_sl, out=out_sl)
 
 
 def last_hidden_slice(seq_layers, pool_slices, num_recurrent_layers) -> list[slice]:

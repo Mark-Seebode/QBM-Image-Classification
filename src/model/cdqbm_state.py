@@ -179,14 +179,22 @@ class Conv_Deep_QBM(MODEL):
         weights_intralayer_sequential = []
         weights_hidden_to_output = []
 
-        for layer in range(self.num_filter_kernels):
+        for _ in range(self.num_filter_kernels):
             kernel_weights.append(np.random.uniform(-1, 1, (self.kernel_size, self.kernel_size)))
+
+        # pooled -> first seq
+        weights_pool_to_first_seq = []
+        for fk in range(self.num_filter_kernels):
+            num_seq_units = self.sequential_layer_sizes[0]
+            weights_pool_to_first_seq.append(
+                np.random.uniform(-1, 1, (self.num_active_units_per_layer[1], num_seq_units)))
+        weights_sequential_layer.append(weights_pool_to_first_seq)
 
         # hidden -> hidden (interlayer)
         weights_sequential_current = []
-        for i, num_units in enumerate(self.sequential_layer_sizes):
+        for i, num_units in enumerate(self.sequential_layer_sizes[1:]):
             weights_sequential_current.append(
-                np.random.uniform(-1, 1, (self.num_active_units_per_layer[1 + i], num_units)))
+                np.random.uniform(-1, 1, (self.num_active_units_per_layer[2 + i], num_units)))
         weights_sequential_layer.append(weights_sequential_current)
 
         # hidden -> hidden (intralayer)

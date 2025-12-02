@@ -339,3 +339,29 @@ class Conv_Deep_QBM(MODEL):
 
         return spec
 
+
+    def save_weights(self, title="", path=""):
+        if path == "":
+            path = self.speicherort
+        if title == "":
+            # take current date and time as title
+            title = "cdqbm_weights_" + str(np.datetime64('now')).replace(":", "-").replace(" ", "_")
+        file_path = Path(path) / f"{title}.pkl"
+        with open(file_path, "wb") as file:
+            pickle.dump(self.weight_objects, file)
+
+    def count_parameters(self) -> int:
+        total_params = 0
+        for weight_matrix in self.weight_objects:
+            if isinstance(weight_matrix, list):
+                for item in weight_matrix:
+                    if isinstance(item, list):
+                        for sub_item in item:
+                            total_params += sub_item.size
+                    else:
+                        total_params += item.size
+            else:
+                total_params += weight_matrix.size
+        return total_params
+
+

@@ -10,13 +10,13 @@ from src.model.geometry import (
     num_conv_units_from_dim, count_pooled_units, conv2d_valid_stride
 )
 from src.qubo.sampler import LocalSASampler, DWaveAdapter
-
+import pickle
 
 class Conv_Deep_QBM(MODEL):
     def __init__(self, num_visible_nodes, num_lable_nodes, example_image, image_shape=(28,28), seed=77, kernel_size=3, pooling_size=0,
-                 pooling_type="deterministic", stride=1, sequential_layer_sizes=None, num_recurrent_layers=0, is_recurrent_weights=False,
+                 pooling_type="deterministic", stride=1, sequential_layer_sizes=None, num_filter_kernels=0, is_recurrent_weights=False,
                  param_string="", load_path="", speicherort=None, is_restricted=False, parallelize=False,
-                hidden_bias_type="none", solver="SA", num_reads=100, anneal=1000, api_token="", groupQpuToken_name=""):
+                 hidden_bias_type="none", solver="SA", num_reads=100, anneal=1000, api_token="", groupQpuToken_name=""):
 
         self.kernel_size = kernel_size
         self.pooling_size = pooling_size
@@ -36,7 +36,7 @@ class Conv_Deep_QBM(MODEL):
          self.conv_layer_dim,
          self.num_conv_units) = self.build_model_structure()
 
-        self.num_recurrent_layers = num_recurrent_layers
+        self.num_filter_kernels = num_filter_kernels
 
         super().__init__(seed, num_hidden_nodes, num_visible_nodes, num_lable_nodes, is_restricted)
 
@@ -145,47 +145,19 @@ class Conv_Deep_QBM(MODEL):
         random.seed(self.seed)
         np.random.seed(self.seed)
 
-        kernel_weights = []
-        weights_sequential_layer = []
-        weights_intralayer_sequential = []
-        weights_hidden_to_output = []
-        weights_seq_recurrent = []
+        if is_recurrent_weights:
+            (kernel_weights,
+            weights_sequential_layer,
+            weights_hidden_to_output,
+            weights_intralayer_sequential,
+            weights_seq_recurrent) = self.init_recurrent_weights()
+        else:
+            (kernel_weights,
+            weights_sequential_layer,
+            weights_hidden_to_output,
+            weights_intralayer_sequential) = self.init_single_sequential_weights()
+            weights_seq_recurrent = None
 
-        for recurrent_layer in range(self.num_recurrent_layers):
-            kernel_weights.append(np.random.uniform(-1, 1, (self.kernel_size, self.kernel_size)))
-
-            # hidden -> hidden (interlayer)
-            weights_sequential_current_recurrent = []
-            for i, num_units in enumerate(self.sequential_layer_sizes):
-                weights_sequential_current_recurrent.append(
-                    np.random.uniform(-1, 1, (self.num_active_units_per_layer[1+i], num_units)))
-            weights_sequential_layer.append(weights_sequential_current_recurrent)
-
-            # hidden -> hidden (intralayer)
-            weights_intralayer_sequential_current_recurrent = []
-            for size in self.sequential_layer_sizes:
-                weights = np.triu(np.random.uniform(-1, 1, size))
-                weights_intralayer_sequential_current_recurrent.append(weights)
-            weights_intralayer_sequential.append(weights_intralayer_sequential_current_recurrent)
-
-            if is_recurrent_weights:
-                weights_recurrent_current = []
-                for size in self.sequential_layer_sizes:
-                    weights = np.random.uniform(-1, 1, (size, size))
-                    weights_recurrent_current.append(weights)
-                weights_seq_recurrent.append(weights_recurrent_current)
-
-                if recurrent_layer == 1 and self.num_recurrent_layers == 2:
-                    # first to last
-                    weights_recurrent_current = []
-                    for size in self.sequential_layer_sizes:
-                        weights = np.zeros((size, size))
-                        weights_recurrent_current.append(weights)
-                    weights_seq_recurrent.append(weights_recurrent_current)
-            # Last hidden -> output
-            weights_hidden_to_output.append(
-                self.init_weights_hidden_to_output(self.num_active_units_per_layer[-1], self.num_label_nodes)
-            )
 
         # output -> output
         weights_output_output = np.triu(
@@ -201,10 +173,96 @@ class Conv_Deep_QBM(MODEL):
             weights_seq_recurrent
         )
 
+    def init_single_sequential_weights(self):
+        kernel_weights = []
+        weights_sequential_layer = []
+        weights_intralayer_sequential = []
+        weights_hidden_to_output = []
+
+        for layer in range(self.num_filter_kernels):
+            kernel_weights.append(np.random.uniform(-1, 1, (self.kernel_size, self.kernel_size)))
+
+        # hidden -> hidden (interlayer)
+        weights_sequential_current = []
+        for i, num_units in enumerate(self.sequential_layer_sizes):
+            weights_sequential_current.append(
+                np.random.uniform(-1, 1, (self.num_active_units_per_layer[1 + i], num_units)))
+        weights_sequential_layer.append(weights_sequential_current)
+
+        # hidden -> hidden (intralayer)
+        weights_intralayer_sequential_current = []
+        for size in self.sequential_layer_sizes:
+            weights = np.triu(np.random.uniform(-1, 1, size))
+            weights_intralayer_sequential_current.append(weights)
+        weights_intralayer_sequential.append(weights_intralayer_sequential_current)
+
+        # Last hidden -> output
+        weights_hidden_to_output.append(
+            self.init_weights_hidden_to_output(self.num_active_units_per_layer[-1], self.num_label_nodes)
+        )
+
+        return (
+            kernel_weights,
+            weights_sequential_layer,
+            weights_hidden_to_output,
+            weights_intralayer_sequential
+        )
+
+    def init_recurrent_weights(self):
+        kernel_weights = []
+        weights_sequential_layer = []
+        weights_intralayer_sequential = []
+        weights_hidden_to_output = []
+        weights_seq_recurrent = []
+
+        for layer in range(self.num_filter_kernels):
+            kernel_weights.append(np.random.uniform(-1, 1, (self.kernel_size, self.kernel_size)))
+
+            # hidden -> hidden (interlayer)
+            weights_sequential_current_recurrent = []
+            for i, num_units in enumerate(self.sequential_layer_sizes):
+                weights_sequential_current_recurrent.append(
+                    np.random.uniform(-1, 1, (self.num_active_units_per_layer[1 + i], num_units)))
+            weights_sequential_layer.append(weights_sequential_current_recurrent)
+
+            # hidden -> hidden (intralayer)
+            weights_intralayer_sequential_current_recurrent = []
+            for size in self.sequential_layer_sizes:
+                weights = np.triu(np.random.uniform(-1, 1, size))
+                weights_intralayer_sequential_current_recurrent.append(weights)
+            weights_intralayer_sequential.append(weights_intralayer_sequential_current_recurrent)
+
+            weights_recurrent_current = []
+            for size in self.sequential_layer_sizes:
+                weights = np.random.uniform(-1, 1, (size, size))
+                weights_recurrent_current.append(weights)
+            weights_seq_recurrent.append(weights_recurrent_current)
+
+            if layer == 1 and self.num_filter_kernels == 2:
+                # first to last
+                weights_recurrent_current = []
+                for size in self.sequential_layer_sizes:
+                    weights = np.zeros((size, size))
+                    weights_recurrent_current.append(weights)
+                weights_seq_recurrent.append(weights_recurrent_current)
+
+            # Last hidden -> output
+            weights_hidden_to_output.append(
+                self.init_weights_hidden_to_output(self.num_active_units_per_layer[-1], self.num_label_nodes)
+            )
+
+        return (
+            kernel_weights,
+            weights_sequential_layer,
+            weights_hidden_to_output,
+            weights_intralayer_sequential,
+            weights_seq_recurrent
+        )
+
     def init_biases(self):
         biases_conv_units = []
         biases_sequential_units = []
-        for recurrent_layer in range(self.num_recurrent_layers):
+        for recurrent_layer in range(self.num_filter_kernels):
             if self.hidden_bias_type == "shared":
                 biases_conv_units.append(np.random.uniform(-1, 1, 1))
             elif self.hidden_bias_type == "none":
@@ -264,7 +322,7 @@ class Conv_Deep_QBM(MODEL):
         conv_active = []
         seq = []
         num_pooled_units_per_recurrent_layer = []
-        for recurrent_layer in range(self.num_recurrent_layers):
+        for recurrent_layer in range(self.num_filter_kernels):
             conv_active.append(len(mock_pooled_idx) if self.pooling_type == "deterministic" else self.num_conv_units)
             seq.append(SeqSpec(self.sequential_layer_sizes))
             num_pooled_units_per_recurrent_layer.append(len(mock_pooled_idx))
@@ -275,7 +333,7 @@ class Conv_Deep_QBM(MODEL):
             n_out=self.num_label_nodes,
             pooling_type=self.pooling_type,
             n_pooled_units=num_pooled_units_per_recurrent_layer,
-            num_recurrent_layers=self.num_recurrent_layers
+            num_recurrent_layers=self.num_filter_kernels
         )
 
 

@@ -267,7 +267,7 @@ class Conv_Deep_QBM(MODEL):
             weights_seq_recurrent
         )
 
-    def init_biases(self):
+    def init_biases(self, is_recurrent_weights: bool):
         biases_conv_units = []
         biases_sequential_units = []
         for recurrent_layer in range(self.num_filter_kernels):
@@ -275,13 +275,18 @@ class Conv_Deep_QBM(MODEL):
                 biases_conv_units.append(np.random.uniform(-1, 1, 1))
             elif self.hidden_bias_type == "none":
                 biases_conv_units.append(np.zeros(self.sequential_layer_sizes))  # TODO: not working
-            else: # self.hidden_bias_type == "individual"
+            else:  # self.hidden_bias_type == "individual"
                 biases_conv_units.append(np.random.uniform(-1, 1, self.num_conv_units))
 
-            sequential_biases_current_recurrent = []
+        if is_recurrent_weights:
+            for recurrent_layer in range(self.num_filter_kernels):
+                sequential_biases_current_recurrent = []
+                for size in self.sequential_layer_sizes:
+                    sequential_biases_current_recurrent.append(np.random.uniform(-1, 1, size))
+                biases_sequential_units.append(sequential_biases_current_recurrent)
+        else:
             for size in self.sequential_layer_sizes:
-                sequential_biases_current_recurrent.append(np.random.uniform(-1, 1, size))
-            biases_sequential_units.append(sequential_biases_current_recurrent)
+                biases_sequential_units.append(np.random.uniform(-1, 1, size))
 
         biases_output = np.random.uniform(-1, 1, self.num_label_nodes)
 
@@ -302,7 +307,7 @@ class Conv_Deep_QBM(MODEL):
         biases_conv_units,
         biases_sequential_units,
         biases_output
-        ) = self.init_biases()
+        ) = self.init_biases(is_recurrent_weights)
 
         return (
             kernel_weights,

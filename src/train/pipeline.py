@@ -30,6 +30,6 @@ def run_clamped(model, x_img, label_vec, beta_eff: float) -> RunOutputs:
     ctx = prepare_context(model, x_img)
 
     Q = build_clamped_qubo(model, ctx, np.asarray(label_vec, float), beta_eff)
-    samples = model.sampler.sample_Q(Q)
+    samples = model.sampler.sample_Q(Q, label_vec)
     return RunOutputs(samples=samples, probs=None, ctx=ctx)
 

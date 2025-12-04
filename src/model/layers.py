@@ -62,7 +62,7 @@ def build_pool_slices(spec: StackSpec, conv: list[slice], idx: int):
         if spec.pooling_type == "deterministic":
             pool_sl = conv[i]
             pool.append(pool_sl)
-            idx += spec.conv_active[i]
+            #idx += spec.conv_active[i]
         elif spec.pooling_type == "probabilistic":
             raise NotImplementedError(
                 "build_slices not implemented for probabilistic pooling with multiple recurrent layers")
@@ -76,12 +76,11 @@ def build_pool_slices(spec: StackSpec, conv: list[slice], idx: int):
 
 def build_seq_slices(spec: StackSpec, idx: int):
     seq_layers = []
-    for recurrent_layer in range(spec.num_recurrent_layers):
+    for s in spec.seq:
         seq_slices: List[slice] = []
-        for s in spec.seq:
-            for size in s.sizes:
-                seq_slices.append(slice(idx, idx + size))
-                idx += size
+        for size in s.sizes:
+            seq_slices.append(slice(idx, idx + size))
+            idx += size
         seq_layers.append(tuple(seq_slices))
 
     return seq_layers, idx

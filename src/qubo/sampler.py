@@ -1,5 +1,8 @@
 # src/samplers.py
 from __future__ import annotations
+
+from pathlib import PurePath, Path
+
 import numpy as np
 import dimod as di
 from neal import SimulatedAnnealingSampler
@@ -10,6 +13,16 @@ from luna_quantum.translator import QuboTranslator
 from luna_quantum._core import Vtype
 from luna_quantum.solve.parameters.algorithms import QuantumAnnealing
 from concurrent.futures import ProcessPoolExecutor
+import logging
+import networkx as nx
+from dwave.cloud import Client
+from dwave.embedding import embed_bqm, unembed_sampleset, EmbeddedStructure
+import dwave.embedding as dwave_embedding
+import dwave_networkx as dnx
+import dwave_networkx
+import minorminer
+import matplotlib.pyplot as plt
+
 
 def _to_bqm(Q: np.ndarray) -> di.BQM:
     return di.BQM(Q, "BINARY")
@@ -48,7 +61,7 @@ class LocalSASampler:
         self.seed = seed
         self.num_reads = num_reads
 
-    def sample_Q(self, Q: np.ndarray) -> np.ndarray:
+    def sample_Q(self, Q: np.ndarray, label=None) -> np.ndarray:
         bqm = _to_bqm(Q)
         if self.sa is None:
             tasks = [
@@ -87,43 +100,81 @@ class LocalSASampler:
 
 class DWaveAdapter:
     # TODO: PQA support
-    def __init__(self, solver, api_token: str, groupQpuToken_name: str, num_reads: int, embedding=None, seed: int | None = None):
+    def __init__(self, solver, api_token: str, groupQpuToken_name: str, num_reads: int, embedding=None, seed: int | None = None, luna: bool = False):
+        self.solver_backend = solver
         self.solver = solver
         self.embedding = embedding
         self.num_reads = num_reads
         self.seed = seed
-        try:
-            self.backend = self.connect_to_luna(api_token, groupQpuToken_name)
-            self.algorithm = self.prepare_algorithm()
-
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to initialize D-Wave solver '{solver}'. "
-                f"Use --solver SA or ensure TOKEN and solver name are valid. Error: {e}"
-            )
-
-    def sample_Q(self, Q: np.ndarray, num_reads: int) -> np.ndarray:
-        bqm = _to_bqm(Q)
-        if self.embedding is not None:
-            from dwave.embedding import embed_bqm, EmbeddedStructure, unembed_sampleset
-            embedded = embed_bqm(bqm, EmbeddedStructure(self.solver.edges, self.embedding))
-            ss_e = self.solver.sample_bqm(embedded, num_reads=int(num_reads), answer_mode='raw').sampleset
-            ss = unembed_sampleset(ss_e, self.embedding, bqm)
+        self.TOKEN = api_token
+        self.luna = luna
+        self.embedding_clamped = None
+        self.embedding_unclamped = None
+        if luna:
+            try:
+                self.group_qpu_token = self.connect_to_luna(api_token, groupQpuToken_name)
+                self.client = Client(token="hdk4-4abb0428102084c3a9dbfedff220b033f12ff0db", solver=solver)
+                self.solver_backend = self.client.get_solver(name=solver)
+                print(f"Connected to D-Wave solver '{solver}' via Luna Quantum.")
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to initialize D-Wave solver '{solver}'. "
+                    f"Use --solver SA or ensure TOKEN and solver name are valid. Error: {e}"
+                )
+            self.clamped_backend = None
+            self.unclamped_backend = None
+            self.algorithm = None
         else:
-            ss = self.solver.sample_bqm(bqm, num_reads=int(num_reads), answer_mode='raw').sampleset
-        return ss.record.sample.astype(np.float32)
+            self.client = Client(token="hdk4-4abb0428102084c3a9dbfedff220b033f12ff0db", solver=solver)
+            # use an Advantage solver_backend (first generation -> with 5000 Qubits)
+            self.solver_backend = self.client.get_solver(name=solver)
+
+    def sample_Q(self, Q: np.ndarray, label=None) -> np.ndarray:
+        qubo_as_bqm = _to_bqm(Q)
+        if self.luna:
+            if label is None:
+                if self.unclamped_backend is None:
+                    self.unclamped_backend = self.get_backend(self.group_qpu_token, label, qubo_as_bqm)
+                    self.algorithm = self.prepare_algorithm(backend=self.unclamped_backend)
+            else:
+                if self.clamped_backend is None:
+                    self.clamped_backend = self.get_backend(self.group_qpu_token, label, qubo_as_bqm)
+                    self.algorithm = self.prepare_algorithm(backend=self.clamped_backend)
+
+            return self.get_qa_samples_luna(Q)
+        else:
+            if label is None:
+                this_embedding = self.find_embedding_with_client(
+                    qubo_as_bqm, True, label) if self.embedding_unclamped is None else self.embedding_unclamped
+            else:
+                this_embedding = self.find_embedding_with_client(
+                    qubo_as_bqm, False, label) if self.embedding_clamped is None else self.embedding_clamped
+            return self.get_qa_samples_Dwave(qubo_as_bqm, self.num_reads, this_embedding)
+
 
     def connect_to_luna(self, api_token: str, groupQpuToken_name: str):
         LunaSolve.authenticate(api_token)
 
         group_qpu_token = GroupQpuToken(name=groupQpuToken_name)
-        backend = DWaveQpu(token=group_qpu_token)
+        return group_qpu_token
 
+
+    def get_backend(self, group_qpu_token, label, qubo_as_bqm):
+        if label is None:
+            this_embedding = self.find_embedding_with_client(
+                qubo_as_bqm, True, label) if self.embedding_unclamped is None else self.embedding_unclamped
+        else:
+            this_embedding = self.find_embedding_with_client(
+                qubo_as_bqm, False, label) if self.embedding_clamped is None else self.embedding_clamped
+
+        backend = DWaveQpu(embedding_parameters=this_embedding, qpu_backend=self.solver, token=group_qpu_token)
         return backend
 
-    def prepare_algorithm(self):
+
+
+    def prepare_algorithm(self, backend):
         algorithm = QuantumAnnealing(
-            backend=self.backend,
+            backend=backend,
             anneal_offsets=None,
             anneal_schedule=None,
             annealing_time=None,
@@ -141,7 +192,120 @@ class DWaveAdapter:
             reinitialize_state=None
         )
 
+        # Mute Luna's active waiting INFO spam
+        #logging.getLogger("luna_quantum.util.active_waiting").setLevel(logging.WARNING)
+
         return algorithm
+
+    def get_qa_samples_Dwave(self, qubo_as_bqm, sample_count, embedding):
+            # uqo: problem.embedding = ...
+
+        embedded_q = embed_bqm(source_bqm=qubo_as_bqm,
+                                embedding=EmbeddedStructure(
+                                target_edges=self.solver_backend.edges,
+                                embedding=embedding
+                                    )
+                                )
+
+        answer = self.run_qa_sampling_Dwave(embedded_q, embedding, qubo_as_bqm, sample_count)
+        samples = list(answer.samples())
+        # if self.current_batch_index == 50:
+        #print(samples)
+        #     raise Exception("stop")
+        return np.array(samples)
+
+
+    def run_qa_sampling_Dwave(self, embedded_bqm, this_embedding, source_bqm_unembedded, sample_count):
+        try:
+            embedded_answer = self.solver_backend.sample_bqm(embedded_bqm,
+                                                             num_reads=sample_count,
+                                                             answer_mode='raw'
+                                                             ).sampleset
+            #print(f"    QPU time used: {embedded_answer.info['timing']['qpu_access_time']} microseconds")
+            #print("QPU time used: ", self.qpu_time_used)
+            #raise Exception("Not implemented")
+        except (
+                ConnectionError, ConnectionResetError, ConnectionAbortedError,
+                ConnectionRefusedError):
+            self.refresh_connection()
+            embedded_answer = self.solver_backend.sample_bqm(embedded_bqm,
+                                                             num_reads=sample_count,
+                                                             answer_mode='raw'
+                                                             ).sampleset
+        answer = unembed_sampleset(target_sampleset=embedded_answer,
+                                   embedding=this_embedding,
+                                   source_bqm=source_bqm_unembedded)
+
+        return answer
+
+
+    def get_qa_samples_luna(self,Q):
+        model = QuboTranslator.to_aq(Q, name="CDQBM QUBO", vtype=Vtype.Binary)
+        solve_job = self.algorithm.run(model, name="test-qubo123")
+        solution = solve_job.result()
+        samples = solution.samples.tolist()
+
+        return np.array(samples)
+
+
+    def find_embedding_with_client(self, bqm, save, label = None):
+        if bqm.quadratic == {}:
+            qubo_graph = nx.Graph([(0, 0)])
+            target_edges = qubo_graph.edges
+        else:
+            target_edges = bqm.quadratic
+        embedding, embedding_found = minorminer.find_embedding(target_edges,
+                                                               self.solver_backend.edges,
+                                                               return_overlap=True,
+                                                               random_seed=self.seed,
+                                                               threads=4
+                                                               )
+        while not embedding_found:
+            print("No embedding found. Trying again...")
+            embedding, embedding_found = minorminer.find_embedding(
+                target_edges, self.solver_backend.edges, return_overlap=True
+            )
+        # adapted from: https://support.dwavesys.com/hc/en-us/community
+        # /posts/1500001417242-Solved-How-to-find-out-the-number-of-qubits
+        # -used-to-solve-a-problem
+        # print(f"Number of logical variables: {len(embedding.keys())}")
+        # print(f"Number of physical qubits used in embedding: "
+        #       f"{sum(len(chain) for chain in embedding.values())}"
+        #         )
+
+        if save:
+            if self.solver == 'Advantage_system4.1' or self.solver == 'Advantage_system7.1':
+                dwave_networkx.draw_pegasus_embedding(dwave_networkx.pegasus_graph(16), emb=embedding, node_size=3,
+                                                      width=.3)
+            elif self.solver == 'Advantage2':
+                dwave_networkx.draw_zephyr_embedding(dwave_networkx.zephyr_graph(16, 16, 4), emb=embedding,
+                                                      node_size=3, width=.3)
+            path = PurePath()
+            path = Path(path / 'embeddings')
+            path.mkdir(mode=0o770, exist_ok=True)
+            plt.savefig("embeddings/cdqbm_embedding20neudet.png", transparent=True)
+
+        if label is None:
+            self.embedding_unclamped = embedding
+        else:
+            self.embedding_clamped = embedding
+        return embedding
+
+
+    def refresh_connection(self):
+        """
+        If there are problems with the connection to the D-Wave, this method
+        can be used to close the client object and create a new one.
+        :return: No return value, adapts the attributes of the DQBM object
+        directly.
+        """
+        solver_id = self.solver_backend.id
+        self.client.close()
+        # get new connection to client
+        self.client = Client(token=self.TOKEN, solver=solver_id)
+        # make sure to get the same solver_backend from this connection
+        self.solver_backend = self.client.get_solver(name=solver_id)
+
 
 
 

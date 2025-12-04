@@ -27,6 +27,7 @@ class Conv_Deep_QBM(MODEL):
         if sequential_layer_sizes is None:
             sequential_layer_sizes = []
         self.sequential_layer_sizes = sequential_layer_sizes
+        self.is_recurrent_weights = is_recurrent_weights
 
         (num_hidden_nodes,
          self.num_active_units,
@@ -285,8 +286,10 @@ class Conv_Deep_QBM(MODEL):
                     sequential_biases_current_recurrent.append(np.random.uniform(-1, 1, size))
                 biases_sequential_units.append(sequential_biases_current_recurrent)
         else:
+            sequential_biases_current_recurrent = []
             for size in self.sequential_layer_sizes:
-                biases_sequential_units.append(np.random.uniform(-1, 1, size))
+                sequential_biases_current_recurrent.append(np.random.uniform(-1, 1, size))
+            biases_sequential_units.append(sequential_biases_current_recurrent)
 
         biases_output = np.random.uniform(-1, 1, self.num_label_nodes)
 
@@ -335,10 +338,14 @@ class Conv_Deep_QBM(MODEL):
         conv_active = []
         seq = []
         num_pooled_units_per_recurrent_layer = []
-        for recurrent_layer in range(self.num_filter_kernels):
+        for _ in range(self.num_filter_kernels):
             conv_active.append(len(mock_pooled_idx) if self.pooling_type == "deterministic" else self.num_conv_units)
-            seq.append(SeqSpec(self.sequential_layer_sizes))
             num_pooled_units_per_recurrent_layer.append(len(mock_pooled_idx))
+        if is_recurrent_weights:
+            for _ in range(self.num_filter_kernels):
+                seq.append(SeqSpec(self.sequential_layer_sizes))
+        else:
+            seq.append(SeqSpec(self.sequential_layer_sizes))
 
         spec = StackSpec(
             conv_active=conv_active,
@@ -375,7 +382,7 @@ class Conv_Deep_QBM(MODEL):
                     else:
                         total_params += item.size
             else:
-                total_params += weight_matrix.size
+                total_params += weight_matrix.size if weight_matrix is not None else 0
         return total_params
 
 

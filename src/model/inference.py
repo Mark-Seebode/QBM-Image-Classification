@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
-from src.model.geometry import conv2d_valid_stride
+from src.model import geometry as geom
 from src.model.layers import (
     SeqSpec, StackSpec, build_slices, pooled_indices_for_input
 )
@@ -16,8 +16,8 @@ def prepare_context(model, x_img) -> InferenceContext:
     fmap_flat = []
     pooled_idexes = []
 
-    for recurrent_layer in range(model.num_recurrent_layers):
-        currentlayer_fmap_2d = conv2d_valid_stride(x_img, model.kernel_weights[recurrent_layer], model.stride)
+    for recurrent_layer in range(model.num_filter_kernels):
+        currentlayer_fmap_2d = geom.conv2d_valid_stride(x_img, model.kernel_weights[recurrent_layer], model.stride)
         currentlayer_fmap_flat = currentlayer_fmap_2d.ravel()
         fmap_2d.append(currentlayer_fmap_2d)
         fmap_flat.append(currentlayer_fmap_flat)

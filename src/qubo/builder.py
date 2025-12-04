@@ -1,5 +1,8 @@
 import numpy as np
 
+from src.model.cdqbm_state import Conv_Deep_QBM
+
+
 def _conv_linear_terms(model, ctx) -> np.ndarray:
     """Return linear biases for the conv block"""
     bases = []
@@ -74,14 +77,14 @@ def add_seq_weights(model, Q):
             Q[pool_sl, first_seq_sl] += W
 
         for i, cur_sl in enumerate(model.slices.seq_layers[0][1:]):
-            prev_sl = model.slices.seq_layers[0][1 + i]
-            W = model.weights_sequential_layer[1 + i]
+            prev_sl = model.slices.seq_layers[0][i]
+            W = model.weights_sequential_layer[1][i]
             Q[prev_sl, cur_sl] += W
 
         # within-layer
         if len(model.weights_intralayer_sequential) > 0:
             for li, cur_sl in enumerate(model.slices.seq_layers[0]):
-                Q[cur_sl, cur_sl] += np.triu(model.weights_intralayer_sequential[li], k=1)
+                Q[cur_sl, cur_sl] += np.triu(model.weights_intralayer_sequential[0][li], k=1)
 
     return Q
 
@@ -90,19 +93,14 @@ def add_seq_biases(model, Q):
     if model.pooling_type == "probabilistic":
         raise NotImplementedError("Probabilistic QUBO with probabilistic pooling not implemented")
         num_units_before_seq = model.spec.conv_active + model.spec.n_pooled_units
-    if model.weights_seq_recurrent is not None:
-        for recurrent_layer in range(model.num_filter_kernels):
-            for s, seq_sl in enumerate(model.slices.seq_layers[recurrent_layer]):
-                Q[seq_sl, seq_sl] += np.diag(model.biases_sequential_units[recurrent_layer][s])
-    else:
-        for s, seq_sl in enumerate(model.slices.seq_layers[0]):
-            Q[seq_sl, seq_sl] += np.diag(model.biases_sequential_units[s])
-
+    for l, seq_layer in enumerate(model.slices.seq_layers):
+        for s, sl in enumerate(seq_layer):
+            Q[sl, sl] += np.diag(model.biases_sequential_units[l][s])
     return Q
 
 
-def add_weights_hidden_to_output(model, Q, ctx):
-    if model.weights_seq_recurrent is not None:
+def add_weights_hidden_to_output(model: Conv_Deep_QBM, Q, ctx):
+    if model.is_recurrent_weights:
         last_sl = model.slices.last_hidden
         for recurrent_layer in range(model.num_filter_kernels):
             W_hy = model.weights_hidden_to_output[recurrent_layer]
@@ -118,7 +116,7 @@ def add_weights_hidden_to_output(model, Q, ctx):
             Q[last_sl[recurrent_layer], model.slices.out] += W_hy
     else:
         last_sl = model.slices.last_hidden
-        assert len[last_sl] == 1
+        assert len(last_sl) == 1
         W_hy = model.weights_hidden_to_output[0]
         last_len = last_sl[0].stop - last_sl[0].start
         if W_hy.shape[0] != last_len:
@@ -177,7 +175,7 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float) -> np
     # Hidden biases sequential
     Q = add_seq_biases(model, Q)
     # Hidden -> Output
-    Q = add_weights_hidden_to_output(model, Q, ctx)
+    #Q = add_weights_hidden_to_output(model, Q, ctx)
 
     # label bias
     if model.weights_seq_recurrent is not None:

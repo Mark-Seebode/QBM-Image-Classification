@@ -217,6 +217,60 @@ def get_medmnist(file: str, index: int = 0, duplicate_positives_n_times: int = 0
     return (train_images, train_labels), (val_images, val_labels), (test_images, test_labels)
 
 
+def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=100, train_test_percentage: float = 0.8, seed: int = 42, image_size: tuple[int,int]=(64,64)):
+    """
+    Load NEU-CLS-64 dataset from class folders containing jpg images
+
+
+    """
+    if classes is None: # all classes
+        classes = sorted([d for d in os.listdir(file) if os.path.isdir(os.path.join(file, d))])
+    print("Using classes:", classes)
+
+    x, y = [], []
+    for label, cls in enumerate(classes):
+        cls_dir = os.path.join(file, cls)
+        imgs = [os.path.join(cls_dir, f) for f in os.listdir(cls_dir)
+                if f.lower().endswith(('.jpg','.jpeg','.png'))]
+        for p in imgs:
+            with Image.open(p) as im:
+                im = im.convert('L')  # <- 1 channel
+                im = im.resize(image_size, Image.Resampling.LANCZOS)
+                arr = np.asarray(im) / 255.0
+                x.append(arr)
+                y.append(label)
+
+    x = np.stack(x).astype(np.float32)
+    y = np.array(y, dtype=np.uint8)
+
+    # randomly pick samples_per_class from each class
+    selected_x = []
+    selected_y = []
+    np.random.seed(seed)
+    for cls in np.unique(y):
+        class_indices = np.where(y == cls)[0]
+        selected_indices = np.random.choice(class_indices, size=num_samples_per_class, replace=False)
+        selected_x.append(x[selected_indices])
+        selected_y.append(y[selected_indices])
+
+    x = np.concatenate(selected_x)
+    y = np.concatenate(selected_y)
+
+    # show sample image after resizing from both classes
+    import matplotlib.pyplot as plt
+    plt.imshow(x[0], cmap='gray')
+    plt.title(f"Sample image from class {y[0]}")
+    plt.show()
+    plt.imshow(x[-1], cmap='gray')
+    plt.title(f"Sample image from class {y[-1]}")
+    plt.show()
+
+    X_train, X_test, y_train, y_test = train_test_split(x, y, train_size=train_test_percentage, test_size=1-train_test_percentage, random_state=seed, shuffle=True)
+
+    return X_train, y_train, X_test, y_test
+
+
+
 def balance_by_undersampling(train_images, train_labels):
     """
     Balances the dataset by randomly undersampling the majority class.

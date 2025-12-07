@@ -217,7 +217,7 @@ def get_medmnist(file: str, index: int = 0, duplicate_positives_n_times: int = 0
     return (train_images, train_labels), (val_images, val_labels), (test_images, test_labels)
 
 
-def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=100, train_test_percentage: float = 0.8, seed: int = 42, image_size: tuple[int,int]=(64,64)):
+def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=None, train_test_percentage: float = 0.8, seed: int = 42, image_size: tuple[int,int]=(64,64)):
     """
     Load NEU-CLS-64 dataset from class folders containing jpg images
 
@@ -243,27 +243,33 @@ def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=1
     x = np.stack(x).astype(np.float32)
     y = np.array(y, dtype=np.uint8)
 
-    # randomly pick samples_per_class from each class
-    selected_x = []
-    selected_y = []
-    np.random.seed(seed)
-    for cls in np.unique(y):
-        class_indices = np.where(y == cls)[0]
-        selected_indices = np.random.choice(class_indices, size=num_samples_per_class, replace=False)
-        selected_x.append(x[selected_indices])
-        selected_y.append(y[selected_indices])
+    #randomly pick samples_per_class from each class
+    if num_samples_per_class is not None:
+        selected_x = []
+        selected_y = []
+        np.random.seed(seed)
+        for cls in np.unique(y):
+            class_indices = np.where(y == cls)[0]
+            selected_indices = np.random.choice(class_indices, size=num_samples_per_class, replace=False)
+            selected_x.append(x[selected_indices])
+            selected_y.append(y[selected_indices])
 
-    x = np.concatenate(selected_x)
-    y = np.concatenate(selected_y)
+        x = np.concatenate(selected_x)
+        y = np.concatenate(selected_y)
 
-    # show sample image after resizing from both classes
-    import matplotlib.pyplot as plt
-    plt.imshow(x[0], cmap='gray')
-    plt.title(f"Sample image from class {y[0]}")
-    plt.show()
-    plt.imshow(x[-1], cmap='gray')
-    plt.title(f"Sample image from class {y[-1]}")
-    plt.show()
+    # show sample image after resizing and original image
+    # import matplotlib.pyplot as plt
+    # plt.subplot(1, 2, 1)
+    # plt.imshow(x[0], cmap='gray')
+    # plt.title('Resized Image')
+    # plt.axis('off')
+    # original_image_path = os.path.join(file, classes[y[0]], os.listdir(os.path.join(file, classes[y[0]]))[0])
+    # with Image.open(original_image_path) as im:
+    #     plt.subplot(1, 2, 2)
+    #     plt.imshow(im, cmap='gray')
+    #     plt.title('Original Image')
+    #     plt.axis('off')
+    # plt.show()
 
     X_train, X_test, y_train, y_test = train_test_split(x, y, train_size=train_test_percentage, test_size=1-train_test_percentage, random_state=seed, shuffle=True)
 

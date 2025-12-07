@@ -427,16 +427,25 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
                   leave=False) as batch_bar:
 
             for idx, b in enumerate(batch_bar):
-                xb = train_x[b:b + batch_size]
-                yb = train_y[b:b + batch_size]
+                if (b + batch_size) <= len(train_x):
+                    x_batch = train_x[b:b + batch_size]  # [X_train[i] for i in range(b, b + batch_size)]
+                    y_batch = train_y[b:b + batch_size]
+                else:
+                    x_batch = train_x[b:]  # [X_train[i] for i in range(b, len(X_train))]
+                    y_batch = train_y[b:]
+
+                if len(x_batch) == 0:
+                    raise ValueError("Empty batch encountered during training")
+
+
                 try:
                     loss = train_one_iteration(
-                        model, xb, yb,
-                        beta_eff=beta_eff,
-                        lr=lr,
-                        one_hot=one_hot,
-                        print_every=0
-                    )
+                            model, x_batch, y_batch,
+                            beta_eff=beta_eff,
+                            lr=lr,
+                            one_hot=one_hot,
+                            print_every=0
+                        )
 
                 except Exception as e:
                     tqdm.write(f"Error during training at epoch {epoch}, batch {idx}: {e}")

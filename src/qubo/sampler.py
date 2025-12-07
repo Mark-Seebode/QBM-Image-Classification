@@ -23,6 +23,7 @@ import dwave_networkx
 import minorminer
 import matplotlib.pyplot as plt
 
+import pickle
 
 def _to_bqm(Q: np.ndarray) -> di.BQM:
     return di.BQM(Q, "BINARY")
@@ -100,7 +101,7 @@ class LocalSASampler:
 
 class DWaveAdapter:
     # TODO: PQA support
-    def __init__(self, solver, api_token: str, groupQpuToken_name: str, num_reads: int, embedding=None, seed: int | None = None, luna: bool = False):
+    def __init__(self, solver, api_token: str, dwave_token, groupQpuToken_name: str, num_reads: int, embedding=None, seed: int | None = None, luna: bool = True):
         self.solver_backend = solver
         self.solver = solver
         self.embedding = embedding
@@ -110,10 +111,11 @@ class DWaveAdapter:
         self.luna = luna
         self.embedding_clamped = None
         self.embedding_unclamped = None
+
         if luna:
             try:
                 self.group_qpu_token = self.connect_to_luna(api_token, groupQpuToken_name)
-                self.client = Client(token="hdk4-4abb0428102084c3a9dbfedff220b033f12ff0db", solver=solver)
+                self.client = Client(token=dwave_token, solver=solver)
                 self.solver_backend = self.client.get_solver(name=solver)
                 print(f"Connected to D-Wave solver '{solver}' via Luna Quantum.")
             except Exception as e:
@@ -125,7 +127,7 @@ class DWaveAdapter:
             self.unclamped_backend = None
             self.algorithm = None
         else:
-            self.client = Client(token="hdk4-4abb0428102084c3a9dbfedff220b033f12ff0db", solver=solver)
+            self.client = Client(token=dwave_token, solver=solver)
             # use an Advantage solver_backend (first generation -> with 5000 Qubits)
             self.solver_backend = self.client.get_solver(name=solver)
 
@@ -146,9 +148,11 @@ class DWaveAdapter:
             if label is None:
                 this_embedding = self.find_embedding_with_client(
                     qubo_as_bqm, True, label) if self.embedding_unclamped is None else self.embedding_unclamped
+                self.embedding_unclamped = this_embedding
             else:
                 this_embedding = self.find_embedding_with_client(
                     qubo_as_bqm, False, label) if self.embedding_clamped is None else self.embedding_clamped
+                self.embedding_clamped = this_embedding
             return self.get_qa_samples_Dwave(qubo_as_bqm, self.num_reads, this_embedding)
 
 
@@ -160,14 +164,17 @@ class DWaveAdapter:
 
 
     def get_backend(self, group_qpu_token, label, qubo_as_bqm):
-        if label is None:
-            this_embedding = self.find_embedding_with_client(
-                qubo_as_bqm, True, label) if self.embedding_unclamped is None else self.embedding_unclamped
-        else:
-            this_embedding = self.find_embedding_with_client(
-                qubo_as_bqm, False, label) if self.embedding_clamped is None else self.embedding_clamped
+        # if label is None:
+        #     this_embedding = self.find_embedding_with_client(
+        #         qubo_as_bqm, True, label) if self.embedding_unclamped is None else self.embedding_unclamped
+        # else:
+        #     this_embedding = self.find_embedding_with_client(
+        #         qubo_as_bqm, False, label) if self.embedding_clamped is None else self.embedding_clamped
+        #
+        # print(this_embedding)
 
-        backend = DWaveQpu(embedding_parameters=this_embedding, qpu_backend=self.solver, token=group_qpu_token)
+        backend = DWaveQpu(qpu_backend=self.solver, token=group_qpu_token)
+
         return backend
 
 
@@ -273,22 +280,25 @@ class DWaveAdapter:
         #       f"{sum(len(chain) for chain in embedding.values())}"
         #         )
 
-        if save:
-            if self.solver == 'Advantage_system4.1' or self.solver == 'Advantage_system7.1':
-                dwave_networkx.draw_pegasus_embedding(dwave_networkx.pegasus_graph(16), emb=embedding, node_size=3,
+
+        if self.solver == 'Advantage_system4.1' or self.solver == 'Advantage_system7.1':
+            dwave_networkx.draw_pegasus_embedding(dwave_networkx.pegasus_graph(16), emb=embedding, node_size=3,
                                                       width=.3)
-            elif self.solver == 'Advantage2':
-                dwave_networkx.draw_zephyr_embedding(dwave_networkx.zephyr_graph(16, 16, 4), emb=embedding,
+        elif self.solver == 'Advantage2_system1.8':
+            dwave_networkx.draw_zephyr_embedding(dwave_networkx.zephyr_graph(16, 4), emb=embedding,
                                                       node_size=3, width=.3)
-            path = PurePath()
-            path = Path(path / 'embeddings')
-            path.mkdir(mode=0o770, exist_ok=True)
-            plt.savefig("embeddings/cdqbm_embedding20neudet.png", transparent=True)
+
+        plt.show()
+        #path = PurePath()
+       ## path = Path(path / 'embeddings')
+        #path.mkdir(mode=0o770, exist_ok=True)
+        #plt.savefig("embeddings/cdqbm_embedding10f3k24168.png", transparent=True)
 
         if label is None:
             self.embedding_unclamped = embedding
         else:
             self.embedding_clamped = embedding
+
         return embedding
 
 

@@ -16,7 +16,7 @@ class Conv_Deep_QBM(MODEL):
     def __init__(self, num_visible_nodes, num_lable_nodes, example_image, image_shape=(28,28), seed=77, kernel_size=3, pooling_size=0,
                  pooling_type="deterministic", stride=1, sequential_layer_sizes=None, num_filter_kernels=0, is_recurrent_weights=False,
                  param_string="", load_path="", speicherort=None, is_restricted=False, parallelize=False,
-                 hidden_bias_type="none", solver="SA", num_reads=100, anneal=1000, api_token="", groupQpuToken_name=""):
+                 hidden_bias_type="none", solver="SA", num_reads=100, anneal=1000, api_token="", dwave_token="", groupQpuToken_name=""):
 
         self.kernel_size = kernel_size
         self.pooling_size = pooling_size
@@ -61,10 +61,10 @@ class Conv_Deep_QBM(MODEL):
         self.spec: StackSpec = self.build_layer_indexing(example_image, is_recurrent_weights)
         self.slices: BlockSlices = build_slices(self.spec)
 
-        self.sampler = self.init_sampler(solver, num_reads, anneal, parallelize, seed, api_token, groupQpuToken_name)
+        self.sampler = self.init_sampler(solver, num_reads, anneal, parallelize, seed, api_token, dwave_token, groupQpuToken_name)
 
 
-    def init_sampler(self, solver="SA", num_reads=100, anneal=1000, parallelize=False, seed=77, api_token="", groupQpuToken_name=""):
+    def init_sampler(self, solver="SA", num_reads=100, anneal=1000, parallelize=False, seed=77, api_token="", dwave_token="", groupQpuToken_name=""):
         # -------------------
         # Sampler
         # -------------------
@@ -74,6 +74,7 @@ class Conv_Deep_QBM(MODEL):
             sampler = DWaveAdapter(
                 solver=solver,
                 api_token=api_token,
+                dwave_token=dwave_token,
                 groupQpuToken_name=groupQpuToken_name,
                 num_reads=num_reads,
                 embedding=None, # TODO: do embedding here?

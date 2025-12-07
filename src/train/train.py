@@ -458,30 +458,30 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
         #train_x, train_y = data_loader.shuffle_images(train_x, train_y, dataset_shuffle_seeds[epoch-1])
         tqdm.write(f"Epoch {epoch}/{epochs} finished - avg loss: {avg_loss:.4f}")
 
-        # predictions = []
-        # probs_all = []
-        # for i in tqdm(range(len(test_x)), desc="Predicting on test data", ncols=80, leave=False):
-        #     run = run_unclamped(
-        #         model, test_x[i],
-        #         beta_eff=float(beta_eff),
-        #         one_hot=bool(one_hot)
-        #     )
-        #     pred = int(np.argmax(run.probs))
-        #     predictions.append(pred)
-        #     probs_all.append(run.probs)
-        #
-        # acc = accuracy_score(test_y, predictions)
-        #
-        # if model.num_label_nodes == 1 or model.num_label_nodes == 2:
-        #     pos_scores = np.array([p[1] for p in probs_all])
-        #     auc = roc_auc_score(test_y, predictions)
-        # else:
-        #     # macro-average AUC with one-vs-rest
-        #     from sklearn.preprocessing import label_binarize
-        #     Y_true = label_binarize(test_y, classes=list(range(2)))
-        #     auc = roc_auc_score(Y_true, np.stack(probs_all, axis=0), average="macro", multi_class="ovr")
-        # auc_list.append(auc)
-        # acc_list.append(acc)
+        predictions = []
+        probs_all = []
+        for i in tqdm(range(len(test_x)), desc="Predicting on test data", ncols=80, leave=False):
+            run = run_unclamped(
+                model, test_x[i],
+                beta_eff=float(beta_eff),
+                one_hot=bool(one_hot)
+            )
+            pred = int(np.argmax(run.probs))
+            predictions.append(pred)
+            probs_all.append(run.probs)
+
+        acc = accuracy_score(test_y, predictions)
+
+        if model.num_label_nodes == 1 or model.num_label_nodes == 2:
+            pos_scores = np.array([p[1] for p in probs_all])
+            auc = roc_auc_score(test_y, predictions)
+        else:
+            # macro-average AUC with one-vs-rest
+            from sklearn.preprocessing import label_binarize
+            Y_true = label_binarize(test_y, classes=list(range(2)))
+            auc = roc_auc_score(Y_true, np.stack(probs_all, axis=0), average="macro", multi_class="ovr")
+        auc_list.append(auc)
+        acc_list.append(acc)
 
 
     # #plot auc_list and acc_list
@@ -503,7 +503,7 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
     # plt.tight_layout()
     # plt.show()
 
-    return epoch_loss_list
+    return epoch_loss_list, acc_list, auc_list
 
 
 def zero_structure_like(obj):

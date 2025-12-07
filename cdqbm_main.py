@@ -137,9 +137,16 @@ def main(seed=19, solver="SA", sample_count=100,
 
 
     print('Training QBM...')
-    epoch_loss_list = train_model(qbm, train_x, train_y, batch_size, epochs, learning_rate, sample_count, beta_eff, one_hot=one_hot, test_x=test_x, test_y=test_y)
+    epoch_loss_list, acc_list, auc_list = train_model(qbm, train_x, train_y, batch_size, epochs, learning_rate, sample_count, beta_eff, one_hot=one_hot, test_x=test_x, test_y=test_y)
     qbm.save_weights()
     print('QBM trained')
+
+    with open(os.path.join(save, f"acc_per_epoch{seed}.pkl"), "wb") as f:
+        pickle.dump(auc_list, f)
+
+    with open(os.path.join(save, f"auc_per_epoch{seed}.pkl"), "wb") as f:
+        pickle.dump(auc_list, f)
+
 
     # visualize the kernel weights
     # every k is a 5x5 kernel
@@ -151,51 +158,51 @@ def main(seed=19, solver="SA", sample_count=100,
 
 
 
-    print("Predict on test data...")
-    predictions = []
-    probs_all = []
-    for i in tqdm(range(len(test_x)), desc="Predicting on test data", ncols=80, leave=False):
-        run = run_unclamped(
-            qbm, test_x[i],
-            beta_eff=float(beta_eff),
-            one_hot=bool(one_hot)
-        )
-        pred = int(np.argmax(run.probs))
-        predictions.append(pred)
-        probs_all.append(run.probs)
-    print("Predictions:", predictions)
+    # print("Predict on test data...")
+    # predictions = []
+    # probs_all = []
+    # for i in tqdm(range(len(test_x)), desc="Predicting on test data", ncols=80, leave=False):
+    #     run = run_unclamped(
+    #         qbm, test_x[i],
+    #         beta_eff=float(beta_eff),
+    #         one_hot=bool(one_hot)
+    #     )
+    #     pred = int(np.argmax(run.probs))
+    #     predictions.append(pred)
+    #     probs_all.append(run.probs)
+    # print("Predictions:", predictions)
 
 
-    acc = accuracy_score(test_y, predictions)
-    f1 = f1_score(test_y, predictions, average="binary" if num_classes == 2 else "macro")
-    precision = precision_score(test_y, predictions, average="binary" if num_classes == 2 else "macro")
-    recall = recall_score(test_y, predictions, average="binary" if num_classes == 2 else "macro")
-
-    if num_label_nodes == 1 or num_label_nodes == 2:
-        pos_scores = np.array([p[1] for p in probs_all])
-        auc = roc_auc_score(test_y, predictions)
-    else:
-        # macro-average AUC with one-vs-rest
-        from sklearn.preprocessing import label_binarize
-        Y_true = label_binarize(test_y, classes=list(range(num_classes)))
-        auc = roc_auc_score(Y_true, np.stack(probs_all, axis=0), average="macro", multi_class="ovr")
-
-    loss_fig = metrics.get_nll_func_per_batch(epoch_loss_list, show_plot=True)
-    loss_fig.savefig("" + os.path.join(save, f"nll_plot{param_string}.png"))
-    print(predictions)
-    cm = confusion_matrix(test_y, predictions)
-    disp = ConfusionMatrixDisplay(cm, display_labels=class_names)
-    disp.plot(values_format="d")
-    plt.title(f"Confusion Matrix ({data_set})")
-    plt.tight_layout()
-    plt.savefig("" + os.path.join(save, f"confusion_matrix{param_string}.png"))
-    plt.show()
-
-    print("Accuracy: ", acc)
-    print("F1 Score: ", f1)
-    print("Precision: ", precision)
-    print("Recall: ", recall)
-    print("AUC Score: ", auc)
+    # acc = accuracy_score(test_y, predictions)
+    # f1 = f1_score(test_y, predictions, average="binary" if num_classes == 2 else "macro")
+    # precision = precision_score(test_y, predictions, average="binary" if num_classes == 2 else "macro")
+    # recall = recall_score(test_y, predictions, average="binary" if num_classes == 2 else "macro")
+    #
+    # if num_label_nodes == 1 or num_label_nodes == 2:
+    #     pos_scores = np.array([p[1] for p in probs_all])
+    #     auc = roc_auc_score(test_y, predictions)
+    # else:
+    #     # macro-average AUC with one-vs-rest
+    #     from sklearn.preprocessing import label_binarize
+    #     Y_true = label_binarize(test_y, classes=list(range(num_classes)))
+    #     auc = roc_auc_score(Y_true, np.stack(probs_all, axis=0), average="macro", multi_class="ovr")
+    #
+    # loss_fig = metrics.get_nll_func_per_batch(epoch_loss_list, show_plot=True)
+    # loss_fig.savefig("" + os.path.join(save, f"nll_plot{param_string}.png"))
+    # print(predictions)
+    # cm = confusion_matrix(test_y, predictions)
+    # disp = ConfusionMatrixDisplay(cm, display_labels=class_names)
+    # disp.plot(values_format="d")
+    # plt.title(f"Confusion Matrix ({data_set})")
+    # plt.tight_layout()
+    # plt.savefig("" + os.path.join(save, f"confusion_matrix{param_string}.png"))
+    # plt.show()
+    #
+    # print("Accuracy: ", acc)
+    # print("F1 Score: ", f1)
+    # print("Precision: ", precision)
+    # print("Recall: ", recall)
+    # print("AUC Score: ", auc)
 
 
 if __name__ == '__main__':

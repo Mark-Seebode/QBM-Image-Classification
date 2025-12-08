@@ -178,13 +178,14 @@ def main(args, resume=False, resume_id=""):
         })
 
 
-
+        print("Submitting SLURM jobs for all seeds")
         for seed in seeds:
             job_id = run_slurm_with_hyperparams(LEARNING_RATE, BATCH_SIZE, SAMPLE_COUNT, counter, seed, KERNEL_SIZE, NUM_KERNELS, SEQUENTIAL_LAYER_SIZES, IS_RECURRENT_WEIGHTS, RESTRICTED, ANNEAL)
             job_list.append(job_id)
         print(job_list)
         wait_for_slurm_jobs(job_list)
 
+        print("All SLURM jobs completed. Collecting results.")
         for seed in seeds:
             param_string = "sweep_" + str(counter) + "-seed_" + str(seed)
 

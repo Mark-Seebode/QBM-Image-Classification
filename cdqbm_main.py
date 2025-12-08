@@ -290,9 +290,12 @@ if __name__ == '__main__':
                         type=int,
                         help='number of convolutional kernels')
 
-    parser.add_argument('--sequential_layer_sizes',
-                        default=[64, 32, 16, 8],
-                        help='Number of units in each sequential layer after convolution')
+    parser.add_argument(
+        "--sequential_layer_sizes",
+        type=int,
+        nargs="+",
+        help="List of sequential layer sizes",
+    )
 
     parser.add_argument('--is_recurrent_weights',
                         default=False,

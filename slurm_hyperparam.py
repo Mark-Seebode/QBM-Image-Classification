@@ -33,10 +33,10 @@ def run_slurm_with_hyperparams(learning_rate, batch_size, sample_count,  seed, k
         str(seed),
         str(kernel_size),
         str(num_kernels),
-        str(sequential_layer_sizes),
         str(is_recurrent_weights),
         str(restricted),
-        str(anneal)
+        str(anneal),
+        *map(str, sequential_layer_sizes),
     ]
 
     print("Running running slurm command")
@@ -322,10 +322,11 @@ if __name__ == '__main__':
                         default=2,
                         type=int)
     parser.add_argument('--sequential_layer_sizes',
-                        metavar='LIST',
+                        metavar='INT',
                         help='Sizes of sequential layers',
-                        default=[16, 8],
-                        type=lambda s: [int(item) for item in s.strip('[]').split(',')])
+                        nargs="+",  # ⭐ accept 1–∞ ints
+                        type=int,
+                        default=[16, 8])
     parser.add_argument('--is_recurrent_weights',
                         metavar='BOOL',
                         help='Whether to use recurrent weights in sequential layers',

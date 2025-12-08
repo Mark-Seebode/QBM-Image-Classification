@@ -19,10 +19,12 @@ SAMPLE_COUNT=$3
 SEED=$4
 KERNEL_SIZE=$5
 NUM_KERNELS=$6
-SEQUENTIAL_LAYER_SIZES=$7
-IS_RECURRENT_WEIGHTS=$8
-RESTRICTED=${9}
-ANNEALING_STEPS=${10}
+IS_RECURRENT_WEIGHTS=$7
+RESTRICTED=${8}
+ANNEALING_STEPS=${9}
+# Collect remaining args (0–3 values) as list
+shift 9
+SEQ_SIZES=("$@")    # now SEQ_SIZES is an array of the remaining args
 
 
 # Dispatch each seed in parallel
@@ -32,7 +34,6 @@ srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
     --seed $SEED \
     --kernel_size $KERNEL_SIZE \
     --num_kernels $NUM_KERNELS \
-    --sequential_layer_sizes $SEQUENTIAL_LAYER_SIZES \
     --is_recurrent_weights $IS_RECURRENT_WEIGHTS \
     --restricted $RESTRICTED \
     --anneal $ANNEALING_STEPS \
@@ -41,7 +42,8 @@ srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
     --sample_count $SAMPLE_COUNT \
     --save "out/slurm/" \
     --name "seed_$SEED"\
-    --test_on_val "True" &
+    --test_on_val "True" \
+    --sequential_layer_sizes "${SEQ_SIZES[@]}" &
 
 echo -e "\tWaiting for Job completion."
 wait

@@ -271,7 +271,7 @@ if __name__ == '__main__':
                         type=bool,
                         help='NOT IMPLEMENTED YET')
     parser.add_argument('--save',
-                        default='out/',
+                        default='out/slurm/',
                         type=str,
                         help='Output folder prefix')
 

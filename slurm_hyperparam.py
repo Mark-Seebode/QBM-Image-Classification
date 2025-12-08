@@ -188,8 +188,8 @@ def main(args, resume=False, resume_id=""):
             param_string =  "-seed_" + str(seed)
 
 
-            acc_list_file = args.path  + "/" +  f"acc_per_epoch{seed}.pkl"
-            auc_list_file = args.path    + "/" + f"auc_per_epoch{seed}.pkl"
+            acc_list_file = args.path  +  f"acc_per_epoch{seed}.pkl"
+            auc_list_file = args.path    +  f"auc_per_epoch{seed}.pkl"
             if os.path.exists(acc_list_file) and os.path.exists(auc_list_file):
                 with open(acc_list_file, "rb") as f:
                     acc_list = pickle.load(f)
@@ -308,7 +308,7 @@ if __name__ == '__main__':
     parser.add_argument('--path',
                         metavar='STR',
                         help='Path to save the results',
-                        default="out/",
+                        default="out/slurm/",
                         type=str)
 
     parser.add_argument('--kernel_size',

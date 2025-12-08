@@ -201,7 +201,7 @@ def main(args, resume=False, resume_id=""):
                     epoch_data[epoch]['acc_val'].append(acc_list[epoch])
                     epoch_data[epoch]['auc_val'].append(auc_list[epoch])
 
-                folder_path = os.path.dirname(args.path + param_string + "/")
+                folder_path = os.path.dirname(args.path)
 
                 shutil.rmtree(folder_path)
 

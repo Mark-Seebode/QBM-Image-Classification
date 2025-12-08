@@ -217,7 +217,7 @@ def get_medmnist(file: str, index: int = 0, duplicate_positives_n_times: int = 0
     return (train_images, train_labels), (val_images, val_labels), (test_images, test_labels)
 
 
-def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=None, train_test_percentage: float = 0.8, seed: int = 42, image_size: tuple[int,int]=(64,64)):
+def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=None, train_test_val_split: list[float]= None, seed: int = 42, image_size: tuple[int,int]=(64, 64)):
     """
     Load NEU-CLS-64 dataset from class folders containing jpg images
 
@@ -226,6 +226,9 @@ def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=N
     if classes is None: # all classes
         classes = sorted([d for d in os.listdir(file) if os.path.isdir(os.path.join(file, d))])
     print("Using classes:", classes)
+
+    if train_test_val_split is None:
+        train_test_val_split = [0.7, 0.15, 0.15]  # default split
 
     x, y = [], []
     for label, cls in enumerate(classes):
@@ -271,9 +274,14 @@ def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=N
     #     plt.axis('off')
     # plt.show()
 
-    X_train, X_test, y_train, y_test = train_test_split(x, y, train_size=train_test_percentage, test_size=1-train_test_percentage, random_state=seed, shuffle=True)
+    # split into train, test, val
+    X_temp, X_test, y_temp, y_test = train_test_split(x, y, test_size=train_test_val_split[2], random_state=seed, shuffle=True)
+    relative_val_size = train_test_val_split[1] / (train_test_val_split[0] + train_test_val_split[1])
+    X_train, X_val, y_train, y_val = train_test_split(X_temp, y_temp, test_size=relative_val_size, random_state=seed, shuffle=True)
 
-    return X_train, y_train, X_test, y_test
+
+
+    return X_train, y_train, X_val, y_val, X_test, y_test
 
 
 

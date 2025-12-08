@@ -28,7 +28,7 @@ def main(seed=19, solver="SA", sample_count=100,
          restricted=True, data_set="mnist", num_classes=2, parallelize=False, save="", name="",
          kernel_size=5, num_kernels=10, sequential_layer_sizes=[16, 8], is_recurrent_weights=False,
          pooling_size=4, pooling_type="probabilistic", hidden_bias_type="shared",
-         one_hot=False, ):
+         one_hot=False, test_on_val=False ):
 
     print("Start")
     random.seed(seed)
@@ -45,24 +45,32 @@ def main(seed=19, solver="SA", sample_count=100,
                                                'src/data/mnist/t10k-labels-idx1-ubyte.gz', classes=[0, 1],
                                                samples_per_class=20)
     elif data_set == "breastmnist":
-        (train_x, train_y), (val_X, val_y), (test_x, test_y) = data_loader.get_medmnist(
+        (train_x, train_y), (val_x, val_y), (test_x, test_y) = data_loader.get_medmnist(
             'src/data/medmnist/breastmnist.npz')
+        if test_on_val:
+            test_x, test_y = val_x, val_y
     elif data_set == "pneumoniamnist":
-        (train_x, train_y), (val_X, val_y), (test_x, test_y) = data_loader.get_medmnist(
+        (train_x, train_y), (val_x, val_y), (test_x, test_y) = data_loader.get_medmnist(
             'src/data/medmnist/pneumoniamnist.npz')
+        if test_on_val:
+            test_x, test_y = val_x, val_y
     elif data_set == "fashionmnist":
         train_x, train_y = data_loader.get_fashionmnist('src/data/fashionmnist/train-images-idx3-ubyte',
                                                         'src/data/fashionmnist/train-labels-idx1-ubyte', classes=[0, 1])
         test_x, test_y = data_loader.get_fashionmnist('src/data/fashionmnist/t10k-images-idx3-ubyte',
                                                       'src/data/fashionmnist/t10k-labels-idx1-ubyte', classes=[0, 1])
     elif data_set == "miniimagenet":
-        (train_x, train_y), (val_X, val_y), (test_x, test_y) = data_loader.get_imagenet(
+        (train_x, train_y), (val_x, val_y), (test_x, test_y) = data_loader.get_imagenet(
             root="/Users/markseebode/.cache/kagglehub/datasets/arjunashok33/miniimagenet/versions/1",
             classes=["n02795169", "n03417042"],)
+        if test_on_val:
+            test_x, test_y = val_x, val_y
 
     elif data_set == "NEU-CLS-64":
-        train_x, train_y, test_x, test_y = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
-         train_test_percentage=0.8, seed=seed, image_size=(28, 28))
+        (train_x, train_y), (val_x, val_y), (test_x, test_y) = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
+                                                                      classes=["in", "sc"], seed=seed, image_size=(28, 28))
+        if test_on_val:
+            test_x, test_y = val_x, val_y
     else:
         raise ValueError("Invalid dataset")
     print("Data loaded")
@@ -255,7 +263,7 @@ if __name__ == '__main__':
                         help="Dataset: 'mnist', 'breastmnist', 'pneumoniamnist', 'fashionmnist', 'cifar-10', 'miniimagenet', 'NEU-CLS-64'")
 
     parser.add_argument('--num_classes',
-                        default=9,
+                        default=2,
                         type=int,
                         help='Number of classes in dataset')
     parser.add_argument('--parallelize',
@@ -307,8 +315,12 @@ if __name__ == '__main__':
                         help="Hidden bias type: 'shared', 'none', or 'per-unit'")
 
     parser.add_argument('--one_hot',
-                        default=True,
+                        default=False,
                         help='Use multi-node one-hot output (vs single-node binary)')
+
+    parser.add_argument('--test_on_val',
+                        default=False,
+                        help='Test either on validation set (if available) instead of test set')
 
     flags = parser.parse_args()
     print("Running with solver_backend", flags.solver)
@@ -338,10 +350,13 @@ if __name__ == '__main__':
         pooling_type=flags.pooling_type,
         hidden_bias_type=flags.hidden_bias_type,
         one_hot=flags.one_hot,
+        test_on_val=flags.test_on_val,
     )
 
 
 # TODO:
 #  - fix probabilistic pooling bug
 #  - refactor in the middle and keep clean
+#  - train test val split
+
 

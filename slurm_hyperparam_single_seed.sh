@@ -40,7 +40,8 @@ srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
     --sample_count $SAMPLE_COUNT \
     --data_set "NEU-CLS-64" \
     --load_path "out/" \
-    --name "sweep_$SWEEP-seed_$SEED"&
+    --name "sweep_$SWEEP-seed_$SEED"\
+    --test_on_val "True" &
 
 echo -e "\tWaiting for Job completion."
 wait

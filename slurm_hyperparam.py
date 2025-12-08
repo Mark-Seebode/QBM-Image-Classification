@@ -52,13 +52,12 @@ def wait_for_slurm_jobs(job_ids):
     """Wait for all SLURM jobs to finish before proceeding."""
     print(f"Waiting for SLURM jobs to finish: {job_ids}")
     while True:
-        running_jobs = subprocess.getoutput("squeue -u seebode --format=%penalty").split("\n")[1:]
-        running_jobs = [job.strip() for job in running_jobs if job.strip()]
-
-        if all(job_id not in running_jobs for job_id in job_ids):
+        cmd = f"squeue -u seebode -h -o \"%i\""
+        out = subprocess.getoutput(cmd)
+        running = out.split()
+        if not any(jid in running for jid in job_ids):
             print("All SLURM jobs have completed.")
             break
-
         time.sleep(10)  # Check every 10 seconds
 
 

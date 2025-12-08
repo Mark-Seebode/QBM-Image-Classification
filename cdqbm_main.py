@@ -319,7 +319,8 @@ if __name__ == '__main__':
                         help='Use multi-node one-hot output (vs single-node binary)')
 
     parser.add_argument('--test_on_val',
-                        default=False,
+                        default=True,
+                        type=bool,
                         help='Test either on validation set (if available) instead of test set')
 
     flags = parser.parse_args()

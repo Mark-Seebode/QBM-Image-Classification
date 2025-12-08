@@ -182,6 +182,7 @@ def main(args, resume=False, resume_id=""):
         print(job_list)
         time.sleep(10)
         wait_for_slurm_jobs(job_list)
+        time.sleep(10)
 
         print("All SLURM jobs completed. Collecting results.")
         for seed in seeds:
@@ -201,12 +202,11 @@ def main(args, resume=False, resume_id=""):
                     epoch_data[epoch]['acc_val'].append(acc_list[epoch])
                     epoch_data[epoch]['auc_val'].append(auc_list[epoch])
 
-                folder_path = os.path.dirname(args.path)
-
-                shutil.rmtree(folder_path)
-
             else:
                 raise FileNotFoundError(f"Result file not found: {acc_list_file} or {auc_list_file}")
+
+        folder_path = os.path.dirname(args.path)
+        shutil.rmtree(folder_path)
 
         epochs_sorted = sorted(epoch_data.keys())
         avg_acc_list = [np.mean(epoch_data[e]['acc_val']) for e in epochs_sorted]

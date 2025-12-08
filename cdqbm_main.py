@@ -67,7 +67,7 @@ def main(seed=19, solver="SA", sample_count=100,
             test_x, test_y = val_x, val_y
 
     elif data_set == "NEU-CLS-64":
-        (train_x, train_y), (val_x, val_y), (test_x, test_y) = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
+        (train_x, train_y), (val_x, val_y), (test_x, test_y) = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
                                                                       classes=["in", "sc"], seed=seed, image_size=(28, 28))
         if test_on_val:
             test_x, test_y = val_x, val_y
@@ -238,7 +238,7 @@ if __name__ == '__main__':
                         help='Batchsize for training')
 
     parser.add_argument('-s', '--seed',
-                        default=3492574,
+                        default=1111,
                         type=int,
                         help='Seed for RNG')
 

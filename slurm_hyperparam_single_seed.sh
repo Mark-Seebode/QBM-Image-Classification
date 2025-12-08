@@ -8,7 +8,7 @@
 export TMPDIR=$HOME/tmp
 mkdir -p $TMPDIR
 
-mkdir -p out/slurm/
+mkdir -p out/slurm
 
 source venv/bin/activate && echo "venv loaded"
 
@@ -35,7 +35,7 @@ srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
     --sequential_layer_sizes $SEQUENTIAL_LAYER_SIZES \
     --is_recurrent_weights $IS_RECURRENT_WEIGHTS \
     --restricted $RESTRICTED \
-    --annealing_steps $ANNEALING_STEPS \
+    --anneal $ANNEALING_STEPS \
     --learning_rate $LEARNING_RATE \
     --batch_size $BATCH_SIZE \
     --sample_count $SAMPLE_COUNT \

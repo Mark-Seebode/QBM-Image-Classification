@@ -21,7 +21,7 @@ from src.model import cdqbm_state
 
 
 
-def run_slurm_with_hyperparams(learning_rate, batch_size, sample_count,  counter, seed, kernel_size, num_kernels, sequential_layer_sizes, is_recurrent_weights, restricted, anneal):
+def run_slurm_with_hyperparams(learning_rate, batch_size, sample_count,  seed, kernel_size, num_kernels, sequential_layer_sizes, is_recurrent_weights, restricted, anneal):
     """Submits a SLURM job with hyperparameters and waits for it to complete."""
 
     shell_script = "slurm_hyperparam_single_seed.sh"
@@ -30,7 +30,6 @@ def run_slurm_with_hyperparams(learning_rate, batch_size, sample_count,  counter
         str(learning_rate),
         str(batch_size),
         str(sample_count),
-        str(counter),
         str(seed),
         str(kernel_size),
         str(num_kernels),
@@ -155,7 +154,6 @@ def main(args, resume=False, resume_id=""):
         metrics_for_all_seeds = [[] for i in range(num_metrics)]
 
 
-        counter = get_counter(args.path)
         seeds = [1269673168, 2315433329, 865316983, 3837958024, 1313670793, 2083939687, 2717174364, 909420331, 2523407112, 1027526762]
         # if resume:
         #     for seed in seeds:
@@ -180,14 +178,14 @@ def main(args, resume=False, resume_id=""):
 
         print("Submitting SLURM jobs for all seeds")
         for seed in seeds:
-            job_id = run_slurm_with_hyperparams(LEARNING_RATE, BATCH_SIZE, SAMPLE_COUNT, counter, seed, KERNEL_SIZE, NUM_KERNELS, SEQUENTIAL_LAYER_SIZES, IS_RECURRENT_WEIGHTS, RESTRICTED, ANNEAL)
+            job_id = run_slurm_with_hyperparams(LEARNING_RATE, BATCH_SIZE, SAMPLE_COUNT, seed, KERNEL_SIZE, NUM_KERNELS, SEQUENTIAL_LAYER_SIZES, IS_RECURRENT_WEIGHTS, RESTRICTED, ANNEAL)
             job_list.append(job_id)
         print(job_list)
         wait_for_slurm_jobs(job_list)
 
         print("All SLURM jobs completed. Collecting results.")
         for seed in seeds:
-            param_string = "sweep_" + str(counter) + "-seed_" + str(seed)
+            param_string =  "-seed_" + str(seed)
 
 
             acc_list_file = args.path  + "/" +  f"acc_per_epoch{seed}.pkl"
@@ -204,8 +202,8 @@ def main(args, resume=False, resume_id=""):
                     epoch_data[epoch]['auc_val'].append(auc_list[epoch])
 
                 folder_path = os.path.dirname(args.path + param_string + "/")
-                if os.path.exists(folder_path):
-                    shutil.rmtree(folder_path)
+
+                shutil.rmtree(folder_path)
 
             else:
                 raise FileNotFoundError(f"Result file not found: {acc_list_file} or {auc_list_file}")

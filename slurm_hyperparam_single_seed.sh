@@ -14,14 +14,13 @@ source venv/bin/activate && echo "venv loaded"
 LEARNING_RATE=$1
 BATCH_SIZE=$2
 SAMPLE_COUNT=$3
-SWEEP=$4
-SEED=$5
-KERNEL_SIZE=$6
-NUM_KERNELS=$7
-SEQUENTIAL_LAYER_SIZES=$8
-IS_RECURRENT_WEIGHTS=$9
-RESTRICTED=${10}
-ANNEALING_STEPS=${11}
+SEED=$4
+KERNEL_SIZE=$5
+NUM_KERNELS=$6
+SEQUENTIAL_LAYER_SIZES=$7
+IS_RECURRENT_WEIGHTS=$8
+RESTRICTED=${9}
+ANNEALING_STEPS=${10}
 
 
 # Dispatch each seed in parallel
@@ -40,7 +39,7 @@ srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
     --sample_count $SAMPLE_COUNT \
     --data_set "NEU-CLS-64" \
     --load_path "out/" \
-    --name "sweep_$SWEEP-seed_$SEED"\
+    --name "seed_$SEED"\
     --test_on_val "True" &
 
 echo -e "\tWaiting for Job completion."

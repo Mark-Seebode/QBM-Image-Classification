@@ -26,7 +26,7 @@ class Conv_Deep_QBM(MODEL):
 
         if sequential_layer_sizes is None:
             sequential_layer_sizes = []
-        self.sequential_layer_sizes = sequential_layer_sizes
+        self.sequential_layer_sizes = [int(s) for s in sequential_layer_sizes]
         self.is_recurrent_weights = is_recurrent_weights
 
         (num_hidden_nodes,

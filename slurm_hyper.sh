@@ -16,7 +16,7 @@ source venv/bin/activate && echo "venv loaded"
 
 
 echo "Dispatching job"
-srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 slurm_hyperparam.py --path "QuCUN_2hnodes/"
+srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 slurm_hyperparam.py --path "out/"
 
 echo -e "\tWaiting for Job completion."
 wait

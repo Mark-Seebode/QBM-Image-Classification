@@ -181,6 +181,7 @@ def main(args, resume=False, resume_id=""):
             job_id = run_slurm_with_hyperparams(LEARNING_RATE, BATCH_SIZE, SAMPLE_COUNT, seed, KERNEL_SIZE, NUM_KERNELS, SEQUENTIAL_LAYER_SIZES, IS_RECURRENT_WEIGHTS, RESTRICTED, ANNEAL)
             job_list.append(job_id)
         print(job_list)
+        time.sleep(10)
         wait_for_slurm_jobs(job_list)
 
         print("All SLURM jobs completed. Collecting results.")

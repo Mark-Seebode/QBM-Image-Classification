@@ -40,7 +40,7 @@ if __name__ == '__main__':
     with open("wandb_key.txt", "r") as f:
        key = f.read().strip()
     wandb.login(key=key)
-    sweep_id = wandb.sweep(sweep=sweep_configuration, project="BachelorArbeit", entity="seebode-mark-ludwig-maximilianuniversity-of-munich")
+    sweep_id = wandb.sweep(sweep=sweep_configuration, project="NEU-CLS-64 CDQBM", entity="seebode-mark-ludwig-maximilianuniversity-of-munich")
     print(list(range(10, 401, 10)))
     #initialize_counter()
     # Sweep generated. Sweep_id is: i12gdlp5

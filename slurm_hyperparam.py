@@ -241,7 +241,6 @@ def main(args, resume=False, resume_id=""):
 
             run.finish()
 
-        increment_counter(counter, args.path)
         print("Run finished.")
 
 

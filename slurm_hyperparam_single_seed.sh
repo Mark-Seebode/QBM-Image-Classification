@@ -37,7 +37,6 @@ srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
     --learning_rate $LEARNING_RATE \
     --batch_size $BATCH_SIZE \
     --sample_count $SAMPLE_COUNT \
-    --data_set "NEU-CLS-64" \
     --load_path "out/" \
     --name "seed_$SEED"\
     --test_on_val "True" &

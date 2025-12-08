@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=CDQBM NEU-CLS
+#SBATCH --job-name=CDQBM-NEU-CLS
 #SBATCH --comment="Running 1 seeds with hyperparameter optimization"
 #SBATCH --partition=Krater
 #SBATCH --nodes=1-1

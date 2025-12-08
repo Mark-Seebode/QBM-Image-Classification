@@ -146,7 +146,7 @@ def main(seed=19, solver="SA", sample_count=100,
 
     print('Training QBM...')
     epoch_loss_list, acc_list, auc_list = train_model(qbm, train_x, train_y, batch_size, epochs, learning_rate, sample_count, beta_eff, one_hot=one_hot, test_x=test_x, test_y=test_y)
-    qbm.save_weights()
+    #qbm.save_weights()
     print('QBM trained')
 
     with open(os.path.join(save, f"acc_per_epoch{seed}.pkl"), "wb") as f:

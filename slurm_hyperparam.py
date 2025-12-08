@@ -154,7 +154,7 @@ def main(args, resume=False, resume_id=""):
         metrics_for_all_seeds = [[] for i in range(num_metrics)]
 
 
-        seeds = [1269673168, 2315433329, 865316983, 3837958024, 1313670793, 2083939687, 2717174364, 909420331, 2523407112, 1027526762]
+        seeds = [12995138, 88139577, 37523562, 87634854, 265871164, 210619836, 83934544, 55626886, 17682686, 11087010]
         # if resume:
         #     for seed in seeds:
         #         result_file = args.path + f"sweep_{counter}-seed_{seed}acc_auc.pkl"

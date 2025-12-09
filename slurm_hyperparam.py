@@ -21,7 +21,7 @@ from src.model import cdqbm_state
 
 
 
-def run_slurm_with_hyperparams(learning_rate, batch_size, sample_count,  seed, kernel_size, num_kernels, sequential_layer_sizes, is_recurrent_weights, restricted, anneal):
+def run_slurm_with_hyperparams(learning_rate, batch_size, sample_count,  seed, kernel_size, num_kernels, sequential_layer_sizes, restricted, anneal):
     """Submits a SLURM job with hyperparameters and waits for it to complete."""
 
     shell_script = "slurm_hyperparam_single_seed.sh"
@@ -33,7 +33,6 @@ def run_slurm_with_hyperparams(learning_rate, batch_size, sample_count,  seed, k
         str(seed),
         str(kernel_size),
         str(num_kernels),
-        str(is_recurrent_weights),
         str(restricted),
         str(anneal),
         *map(str, sequential_layer_sizes),
@@ -177,7 +176,7 @@ def main(args, resume=False, resume_id=""):
 
         print("Submitting SLURM jobs for all seeds")
         for seed in seeds:
-            job_id = run_slurm_with_hyperparams(LEARNING_RATE, BATCH_SIZE, SAMPLE_COUNT, seed, KERNEL_SIZE, NUM_KERNELS, SEQUENTIAL_LAYER_SIZES, False, RESTRICTED, ANNEAL)
+            job_id = run_slurm_with_hyperparams(LEARNING_RATE, BATCH_SIZE, SAMPLE_COUNT, seed, KERNEL_SIZE, NUM_KERNELS, SEQUENTIAL_LAYER_SIZES, RESTRICTED, ANNEAL)
             job_list.append(job_id)
         print(job_list)
         time.sleep(10)

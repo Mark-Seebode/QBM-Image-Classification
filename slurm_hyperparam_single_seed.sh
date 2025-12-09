@@ -19,11 +19,10 @@ SAMPLE_COUNT=$3
 SEED=$4
 KERNEL_SIZE=$5
 NUM_KERNELS=$6
-IS_RECURRENT_WEIGHTS=$7
-RESTRICTED=${8}
-ANNEALING_STEPS=${9}
+RESTRICTED=${7}
+ANNEALING_STEPS=${8}
 # Collect remaining args (0–3 values) as list
-shift 9
+shift 8
 SEQ_SIZES=("$@")    # now SEQ_SIZES is an array of the remaining args
 
 
@@ -34,7 +33,6 @@ srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
     --seed $SEED \
     --kernel_size $KERNEL_SIZE \
     --num_kernels $NUM_KERNELS \
-    --is_recurrent_weights $IS_RECURRENT_WEIGHTS \
     --restricted $RESTRICTED \
     --anneal $ANNEALING_STEPS \
     --learning_rate $LEARNING_RATE \

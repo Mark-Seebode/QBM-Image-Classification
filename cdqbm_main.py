@@ -22,6 +22,18 @@ from src.train.train import train_model
 import pickle
 
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('true', '1', 'yes', 'y', 't'):
+        return True
+    elif v.lower() in ('false', '0', 'no', 'n', 'f'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+
 
 def main(seed=19, solver="SA", sample_count=100,
          anneal=1000, beta_eff=1.0, epochs=3, batch_size=10, learning_rate=0.01,
@@ -134,8 +146,6 @@ def main(seed=19, solver="SA", sample_count=100,
         parallelize=bool(parallelize)
     )
 
-
-
     print('QBM created with:\n'
           f'  active hidden nodes: {qbm.num_active_units_per_layer}\n'
           f'  label nodes: {qbm.num_label_nodes}\n'
@@ -150,7 +160,7 @@ def main(seed=19, solver="SA", sample_count=100,
     print('QBM trained')
 
     with open(os.path.join(save, f"acc_per_epoch{seed}.pkl"), "wb") as f:
-        pickle.dump(auc_list, f)
+        pickle.dump(acc_list, f)
 
     with open(os.path.join(save, f"auc_per_epoch{seed}.pkl"), "wb") as f:
         pickle.dump(auc_list, f)
@@ -223,8 +233,8 @@ if __name__ == '__main__':
                         help='Learning rate for training')
 
     parser.add_argument('-r', '--restricted',
-                        default=True,
-                        type=bool,
+                        default="False",
+                        type=str2bool,
                         help='Restricted weights between hidden nodes')
 
     parser.add_argument('-e', '--epochs',
@@ -290,11 +300,11 @@ if __name__ == '__main__':
                         type=int,
                         help='number of convolutional kernels')
 
-    parser.add_argument(
-        "--sequential_layer_sizes",
-        type=int,
-        nargs="+",
-        help="List of sequential layer sizes",
+    parser.add_argument("--sequential_layer_sizes",
+                        type=int,
+                        nargs="+",
+                        default=[16, 8],
+                        help="List of sequential layer sizes",
     )
 
     parser.add_argument('--is_recurrent_weights',
@@ -356,6 +366,7 @@ if __name__ == '__main__':
         one_hot=flags.one_hot,
         test_on_val=flags.test_on_val,
     )
+
 
 
 # TODO:

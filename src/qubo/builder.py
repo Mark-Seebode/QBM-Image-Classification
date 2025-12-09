@@ -43,7 +43,7 @@ def add_seq_recurrent_weights(model, Q):
             prev_sl = cur_sl
 
             # within-layer
-            if len(model.weights_intralayer_sequential) > 0:
+            if not model.is_restricted:
                 for li, cur_sl in enumerate(model.slices.seq_layers[recurrent_layer]):
                     Q[cur_sl, cur_sl] += np.triu(model.weights_intralayer_sequential[recurrent_layer][li], k=1)
 
@@ -82,7 +82,7 @@ def add_seq_weights(model, Q):
             Q[prev_sl, cur_sl] += W
 
         # within-layer
-        if len(model.weights_intralayer_sequential) > 0:
+        if not model.is_restricted:
             for li, cur_sl in enumerate(model.slices.seq_layers[0]):
                 Q[cur_sl, cur_sl] += np.triu(model.weights_intralayer_sequential[0][li], k=1)
 

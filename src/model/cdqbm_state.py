@@ -200,11 +200,12 @@ class Conv_Deep_QBM(MODEL):
         weights_sequential_layer.append(weights_sequential_current)
 
         # hidden -> hidden (intralayer)
-        weights_intralayer_sequential_current = []
-        for size in self.sequential_layer_sizes:
-            weights = np.triu(np.random.uniform(-1, 1, size))
-            weights_intralayer_sequential_current.append(weights)
-        weights_intralayer_sequential.append(weights_intralayer_sequential_current)
+        if not self.is_restricted:
+            weights_intralayer_sequential_current = []
+            for size in self.sequential_layer_sizes:
+                weights = np.triu(np.random.uniform(-1, 1, size))
+                weights_intralayer_sequential_current.append(weights)
+            weights_intralayer_sequential.append(weights_intralayer_sequential_current)
 
         # Last hidden -> output
         weights_hidden_to_output.append(
@@ -236,11 +237,12 @@ class Conv_Deep_QBM(MODEL):
             weights_sequential_layer.append(weights_sequential_current_recurrent)
 
             # hidden -> hidden (intralayer)
-            weights_intralayer_sequential_current_recurrent = []
-            for size in self.sequential_layer_sizes:
-                weights = np.triu(np.random.uniform(-1, 1, size))
-                weights_intralayer_sequential_current_recurrent.append(weights)
-            weights_intralayer_sequential.append(weights_intralayer_sequential_current_recurrent)
+            if not self.is_restricted:
+                weights_intralayer_sequential_current_recurrent = []
+                for size in self.sequential_layer_sizes:
+                    weights = np.triu(np.random.uniform(-1, 1, size))
+                    weights_intralayer_sequential_current_recurrent.append(weights)
+                weights_intralayer_sequential.append(weights_intralayer_sequential_current_recurrent)
 
             weights_recurrent_current = []
             for size in self.sequential_layer_sizes:
@@ -373,17 +375,37 @@ class Conv_Deep_QBM(MODEL):
             pickle.dump(self.weight_objects, file)
 
     def count_parameters(self) -> int:
-        total_params = 0
-        for weight_matrix in self.weight_objects:
-            if isinstance(weight_matrix, list):
-                for item in weight_matrix:
-                    if isinstance(item, list):
-                        for sub_item in item:
-                            total_params += sub_item.size
-                    else:
-                        total_params += item.size
-            else:
-                total_params += weight_matrix.size if weight_matrix is not None else 0
-        return total_params
+        """iterate through all weight object and count total of none zero parameters recursively"""
+
+        def count_nonzero(obj):
+            """
+            Recursively count non-zero numeric entries in any nested structure:
+            lists, tuples, numpy arrays, etc.
+            """
+
+            # Case 1: NumPy array → use its own nonzero-counter
+            try:
+                import numpy as np
+                if isinstance(obj, np.ndarray):
+                    return np.count_nonzero(obj)
+            except ImportError:
+                pass
+
+            # Case 2: Iterable container → recurse
+            if isinstance(obj, (list, tuple)):
+                total = 0
+                for item in obj:
+                    total += count_nonzero(item)
+                return total
+
+            # Case 3: Base case → numeric scalar
+            # Try to interpret the object as a number
+            try:
+                value = float(obj)
+                return 1 if value != 0 else 0
+            except (TypeError, ValueError):
+                # If it cannot convert to float (e.g., string), ignore it
+                return 0
+        return count_nonzero(self.weight_objects)
 
 

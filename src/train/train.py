@@ -2,6 +2,7 @@
 from __future__ import annotations
 import numpy as np
 
+from src import data_loader
 from src.model.cdqbm_state import Conv_Deep_QBM
 from src.model.geometry import conv2d_valid_stride
 from src.model.layers import pooled_indices_for_input, SeqSpec, StackSpec, build_slices
@@ -22,8 +23,8 @@ def train_one_iteration(
     X, Y,
     beta_eff: float,
     lr: float,
+    kernel_change_history:list[int],
     one_hot: bool = False,
-    print_every: int = 0,
 ):
     (
         errors_biases_conv,
@@ -42,7 +43,7 @@ def train_one_iteration(
 
     n = len(X)
     tot_loss, tot_err = 0.0, 0.0
-
+    prev_kernel_weights = model.kernel_weights.copy()
     for i, (x, y) in enumerate(zip(X, Y), 1):
         if one_hot:
             lab = np.zeros(model.num_label_nodes, dtype=float)
@@ -139,68 +140,73 @@ def train_one_iteration(
         errors_biases_out += (avgs_biases_output_c - avgs_biases_output_u)
         errors_weights_output_output += (avgs_weights_output_output_c - avgs_weights_output_output_u)
 
+    for recurrent_layer in range(model.num_filter_kernels):
+        errors_biases_conv[recurrent_layer] /= X.shape[0]
+        errors_weights_kernels[recurrent_layer] /= X.shape[0]
+
+    if len(model.slices.seq_layers) > 0:
+        for i in range(len(errors_biases_seq)):
+            errors_biases_seq[i] = [err / X.shape[0] for err in errors_biases_seq[i]]
+
+    # errors_weights_hidden_interlayer /= x_batch.shape[0]
+    if not model.is_restricted:
+        for i in range(len(errors_weights_interlayer_sequential)):
+            errors_weights_interlayer_sequential[i] = [error / X.shape[0] for error in errors_weights_interlayer_sequential[i]]
+
+    for i in range(len(errors_weights_sequential)):
+        errors_weights_sequential[i] = [error / X.shape[0] for error in errors_weights_sequential[i]]
+
+    if model.is_recurrent_weights:
         for recurrent_layer in range(model.num_filter_kernels):
-            errors_biases_conv[recurrent_layer] /= X.shape[0]
-            errors_weights_kernels[recurrent_layer] /= X.shape[0]
+            error_weights_seq_recurrent[recurrent_layer] = [error / X.shape[0] for error in error_weights_seq_recurrent[recurrent_layer]]
 
-        if len(model.slices.seq_layers) > 0:
-            for i in range(len(errors_biases_seq)):
-                errors_biases_seq[i] = [err / X.shape[0] for err in errors_biases_seq[i]]
+    errors_weights_hidden_to_output /= X.shape[0]
 
-        # errors_weights_hidden_interlayer /= x_batch.shape[0]
-        if not model.is_restricted:
-            for i in range(len(errors_weights_interlayer_sequential)):
-                errors_weights_interlayer_sequential[i] = [error / X.shape[0] for error in errors_weights_interlayer_sequential[i]]
-
-        for i in range(len(errors_weights_sequential)):
-            errors_weights_sequential[i] = [error / X.shape[0] for error in errors_weights_sequential[i]]
-
-        if model.is_recurrent_weights:
-            for recurrent_layer in range(model.num_filter_kernels):
-                error_weights_seq_recurrent[recurrent_layer] = [error / X.shape[0] for error in error_weights_seq_recurrent[recurrent_layer]]
-
-        errors_weights_hidden_to_output /= X.shape[0]
-
-        model.biases_conv_units -= lr * errors_biases_conv
-        if len(model.slices.seq_layers) > 0:
-            for i, _ in enumerate(zip(model.biases_sequential_units,
+    model.biases_conv_units -= lr * errors_biases_conv
+    if len(model.slices.seq_layers) > 0:
+        for i, _ in enumerate(zip(model.biases_sequential_units,
                                           errors_biases_seq)):
-                model.biases_sequential_units[i] = [
-                    b - lr * e
-                    for b, e in zip(model.biases_sequential_units[i],
+            model.biases_sequential_units[i] = [
+                b - lr * e
+                for b, e in zip(model.biases_sequential_units[i],
                                         errors_biases_seq[i])
-                ]
+            ]
 
-        model.kernel_weights -= lr * errors_weights_kernels
+    model.kernel_weights -= lr * errors_weights_kernels
 
-        if len(model.slices.seq_layers) > 0:
-            # self.weights_hidden_interlayer -= learning_rate * errors_weights_hidden_interlayer
-            if not model.is_restricted:
-                for i, _ in enumerate(zip(model.weights_intralayer_sequential,
-                                              errors_weights_interlayer_sequential)):
-                    model.weights_intralayer_sequential[i] = [weights - lr * errors_weights
-                                                           for weights, errors_weights in zip(model.weights_intralayer_sequential[i],
+    if len(model.slices.seq_layers) > 0:
+        # self.weights_hidden_interlayer -= learning_rate * errors_weights_hidden_interlayer
+        if not model.is_restricted:
+            for i, _ in enumerate(zip(model.weights_intralayer_sequential,
+                                        errors_weights_interlayer_sequential)):
+                model.weights_intralayer_sequential[i] = [weights - lr * errors_weights
+                                                        for weights, errors_weights in zip(model.weights_intralayer_sequential[i],
                                                                                               errors_weights_interlayer_sequential[i])]
 
-            for i, _ in enumerate(zip(model.weights_sequential_layer,
-                                          errors_weights_sequential)):
-                model.weights_sequential_layer[i] = [weights - lr * errors_weights
-                                                    for weights, errors_weights in
-                                                    zip(model.weights_sequential_layer[i], errors_weights_sequential[i])]
-            if model.is_recurrent_weights:
-                for recurrent_layer in range(model.num_filter_kernels):
-                    model.weights_seq_recurrent[recurrent_layer] = [weights - lr * errors_weights
-                                                    for weights, errors_weights in
-                                                    zip(model.weights_seq_recurrent[recurrent_layer], error_weights_seq_recurrent[recurrent_layer])]
+    for i, _ in enumerate(zip(model.weights_sequential_layer,
+                                    errors_weights_sequential)):
+        model.weights_sequential_layer[i] = [weights - lr * errors_weights
+                                                for weights, errors_weights in
+                                                zip(model.weights_sequential_layer[i], errors_weights_sequential[i])]
+    if model.is_recurrent_weights:
+        for recurrent_layer in range(model.num_filter_kernels):
+            model.weights_seq_recurrent[recurrent_layer] = [weights - lr * errors_weights
+                                            for weights, errors_weights in
+                                            zip(model.weights_seq_recurrent[recurrent_layer], error_weights_seq_recurrent[recurrent_layer])]
 
-        for i, _ in enumerate(zip(model.weights_hidden_to_output,
-                                      errors_weights_hidden_to_output)):
-            model.weights_hidden_to_output[i] -= lr * errors_weights_hidden_to_output[i]
+    for i, _ in enumerate(zip(model.weights_hidden_to_output,errors_weights_hidden_to_output)):
+        model.weights_hidden_to_output[i] -= lr * errors_weights_hidden_to_output[i]
 
-        errors_weights_output_output /= X.shape[0]
-        errors_biases_out /= X.shape[0]
-        model.biases_output -= lr * errors_biases_out
-        model.weights_output_output -= lr * errors_weights_output_output
+    errors_weights_output_output /= X.shape[0]
+    errors_biases_out /= X.shape[0]
+    model.biases_output -= lr * errors_biases_out
+    model.weights_output_output -= lr * errors_weights_output_output
+
+    delta = model.kernel_weights - prev_kernel_weights
+    kernel_change = np.linalg.norm(delta)
+
+    kernel_change_history.append(kernel_change)
+
 
     return tot_loss / max(1, n)
 
@@ -284,7 +290,8 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
      avgs_weights_hidden_to_output,
      avgs_weights_output_output) = initialize_zero_errors_weights(model)
 
-    sample_matrix = np.vstack([samples.samples])
+    #sample_matrix = np.vstack([samples.samples])
+    sample_matrix = samples.samples
 
     if model.pooling_type == "probabilistic":
         #remove the conv units from the sampel matrix
@@ -415,11 +422,15 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
     epoch_loss_list = []
     auc_list = []
     acc_list = []
+
+    kernel_change_history = []
     for epoch in tqdm(range(1, epochs + 1),
                       desc="Epochs",
                       ncols=100, leave=False):
 
         epoch_loss = 0.0
+
+        train_x, train_y = data_loader.shuffle_images(train_x, train_y, model.seed + epoch)
 
         with tqdm(range(0, n, batch_size),
                   desc=f"Epoch {epoch}/{epochs} batches",
@@ -443,8 +454,8 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
                             model, x_batch, y_batch,
                             beta_eff=beta_eff,
                             lr=lr,
+                            kernel_change_history=kernel_change_history,
                             one_hot=one_hot,
-                            print_every=0
                         )
 
                 except Exception as e:
@@ -503,7 +514,7 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
     # plt.tight_layout()
     # plt.show()
 
-    return epoch_loss_list, acc_list, auc_list
+    return epoch_loss_list, acc_list, auc_list, kernel_change_history
 
 
 def zero_structure_like(obj):

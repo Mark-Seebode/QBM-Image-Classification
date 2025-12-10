@@ -1,3 +1,4 @@
+import math
 import random
 from pathlib import Path
 import pickle
@@ -181,15 +182,16 @@ class Conv_Deep_QBM(MODEL):
         weights_intralayer_sequential = []
         weights_hidden_to_output = []
 
-        for _ in range(self.num_filter_kernels):
-            kernel_weights.append(np.random.uniform(-1, 1, (self.kernel_size, self.kernel_size)))
+        # fan_in = self.kernel_size * self.kernel_size
+        # std = np.sqrt(2.0 / fan_in)  # He init
+        kernel_weights = np.random.uniform(-1, 1, (self.num_filter_kernels, self.kernel_size, self.kernel_size))
 
-        # pooled -> first seq
-        weights_pool_to_first_seq = []
-        for fk in range(self.num_filter_kernels):
-            num_seq_units = self.sequential_layer_sizes[0]
-            weights_pool_to_first_seq.append(
-                np.random.uniform(-1, 1, (self.num_active_units_per_layer[1], num_seq_units)))
+        if len(self.sequential_layer_sizes) == 0:
+            weights_pool_to_first_seq = np.random.uniform(-1, 1,
+                                                          (self.num_filter_kernels, self.num_active_units_per_layer[1],
+                                                           self.num_label_nodes))
+        else:
+            weights_pool_to_first_seq = np.random.uniform(-1, 1,  (self.num_filter_kernels, self.num_active_units_per_layer[1], self.sequential_layer_sizes[0]))
         weights_sequential_layer.append(weights_pool_to_first_seq)
 
         # hidden -> hidden (interlayer)
@@ -274,13 +276,14 @@ class Conv_Deep_QBM(MODEL):
     def init_biases(self, is_recurrent_weights: bool):
         biases_conv_units = []
         biases_sequential_units = []
-        for recurrent_layer in range(self.num_filter_kernels):
-            if self.hidden_bias_type == "shared":
-                biases_conv_units.append(np.random.uniform(-1, 1, 1))
-            elif self.hidden_bias_type == "none":
-                biases_conv_units.append(np.zeros(self.sequential_layer_sizes))  # TODO: not working
-            else:  # self.hidden_bias_type == "individual"
-                biases_conv_units.append(np.random.uniform(-1, 1, self.num_conv_units))
+        biases_conv_units = np.random.uniform(-1, 1,(self.num_filter_kernels, 1))
+        # for recurrent_layer in range(self.num_filter_kernels):
+        #     # if self.hidden_bias_type == "shared":
+        #     #     biases_conv_units.append(n[0.0])#np.random.uniform(-1, 1, 1))
+        #     if self.hidden_bias_type == "none":
+        #         biases_conv_units.append(np.zeros(self.sequential_layer_sizes))  # TODO: not working
+        #     else:  # self.hidden_bias_type == "individual"
+        #         biases_conv_units.append(np.random.uniform(-1, 1, self.num_conv_units))
 
         if is_recurrent_weights:
             for recurrent_layer in range(self.num_filter_kernels):
@@ -295,6 +298,8 @@ class Conv_Deep_QBM(MODEL):
             biases_sequential_units.append(sequential_biases_current_recurrent)
 
         biases_output = np.random.uniform(-1, 1, self.num_label_nodes)
+        #biases_output = np.array([math.log(0.6/0.4), math.log(0.4/0.6)] )
+        print("bias:", biases_output)# initialize output biases to 0
 
         return biases_conv_units, biases_sequential_units, biases_output
 

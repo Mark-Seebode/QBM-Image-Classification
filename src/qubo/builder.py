@@ -6,14 +6,22 @@ from src.model.cdqbm_state import Conv_Deep_QBM
 def _conv_linear_terms(model, ctx) -> np.ndarray:
     """Return linear biases for the conv block"""
     bases = []
+    target_std = 0.5
     if model.pooling_type == "deterministic":
         for fk in range(model.num_filter_kernels):
             base = ctx.fmap_flat[fk][ctx.pooled_idx[fk]]
+            # zero-mean, unit-variance
+            #mu = base.mean()
+            #sigma = base.std() + 1e-6
+            #base = (base - mu) / sigma
+            #base = base * target_std
+
             if model.hidden_bias_type == "shared":
                 base = base + model.biases_conv_units[fk][0]
-            elif model.hidden_bias_type != "none":
-                base = base
             bases.append(base)
+            # elif model.hidden_bias_type != "none":
+            #     base = base
+            # bases.append(base)
         return np.array(bases)
     raise NotImplementedError("Not implemented for probabilistic pooling")
     # probabilistic -> all conv units active
@@ -47,20 +55,20 @@ def add_seq_recurrent_weights(model, Q):
                 for li, cur_sl in enumerate(model.slices.seq_layers[recurrent_layer]):
                     Q[cur_sl, cur_sl] += np.triu(model.weights_intralayer_sequential[recurrent_layer][li], k=1)
 
-        # between-layer recurrent
-        for recurrent_layer in range(model.num_filter_kernels - 1):
-            for seq_layer in range(len(model.slices.seq_layers[recurrent_layer])):
-                cur_sl = model.slices.seq_layers[recurrent_layer][seq_layer]
-                next_sl = model.slices.seq_layers[recurrent_layer + 1][seq_layer]
-                W_rec = model.weights_seq_recurrent[recurrent_layer][seq_layer]
-                Q[cur_sl, next_sl] += W_rec
+    # between-layer recurrent
+    for recurrent_layer in range(model.num_filter_kernels - 1):
+        for seq_layer in range(len(model.slices.seq_layers[recurrent_layer])):
+            cur_sl = model.slices.seq_layers[recurrent_layer][seq_layer]
+            next_sl = model.slices.seq_layers[recurrent_layer + 1][seq_layer]
+            W_rec = model.weights_seq_recurrent[recurrent_layer][seq_layer]
+            Q[cur_sl, next_sl] += W_rec
 
-        if model.num_filter_kernels > 2:
-            for seq_layer in range(len(model.slices.seq_layers[0])):
-                cur_sl = model.slices.seq_layers[0][seq_layer]
-                next_sl = model.slices.seq_layers[-1][seq_layer]
-                W_rec = model.weights_seq_recurrent[-1][seq_layer]
-                Q[cur_sl, next_sl] += W_rec
+    if model.num_filter_kernels > 2:
+        for seq_layer in range(len(model.slices.seq_layers[0])):
+            cur_sl = model.slices.seq_layers[0][seq_layer]
+            next_sl = model.slices.seq_layers[-1][seq_layer]
+            W_rec = model.weights_seq_recurrent[-1][seq_layer]
+            Q[cur_sl, next_sl] += W_rec
 
     return Q
 
@@ -119,14 +127,14 @@ def add_weights_hidden_to_output(model: Conv_Deep_QBM, Q, ctx):
         assert len(last_sl) == 1
         W_hy = model.weights_hidden_to_output[0]
         last_len = last_sl[0].stop - last_sl[0].start
-        if W_hy.shape[0] != last_len:
-            if model.pooling_type == "deterministic" and last_sl[0] == model.slices.conv[0]:
-                W_hy = W_hy[np.asarray(ctx.pooled_idx[0], dtype=int), :]
-            elif ctx.hidden_row_map is not None:
-                raise NotImplementedError("Unclamped QUBO with probabilistic pooling not implemented")
-                W_hy = W_hy[np.asarray(ctx.hidden_row_map, dtype=int), :]
-            else:
-                raise ValueError()
+        # if W_hy.shape[0] != last_len:
+        #     if model.pooling_type == "deterministic" and last_sl[0] == model.slices.conv[0]:
+        #         W_hy = W_hy[np.asarray(ctx.pooled_idx[0], dtype=int), :]
+        #     elif ctx.hidden_row_map is not None:
+        #         raise NotImplementedError("Unclamped QUBO with probabilistic pooling not implemented")
+        #         W_hy = W_hy[np.asarray(ctx.hidden_row_map, dtype=int), :]
+        #     else:
+        #         raise ValueError()
         Q[last_sl[0], model.slices.out] += W_hy
     return Q
 

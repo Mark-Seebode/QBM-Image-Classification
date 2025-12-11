@@ -10,11 +10,12 @@ def _conv_linear_terms(model, ctx) -> np.ndarray:
     if model.pooling_type == "deterministic":
         for fk in range(model.num_filter_kernels):
             base = ctx.fmap_flat[fk][ctx.pooled_idx[fk]]
+
             # zero-mean, unit-variance
-            #mu = base.mean()
-            #sigma = base.std() + 1e-6
-            #base = (base - mu) / sigma
-            #base = base * target_std
+            # mu = base.mean()
+            # sigma = base.std() + 1e-6
+            # base = (base - mu) / sigma
+            # base = base * target_std
 
             if model.hidden_bias_type == "shared":
                 base = base + model.biases_conv_units[fk][0]
@@ -108,39 +109,27 @@ def add_seq_biases(model, Q):
 
 
 def add_weights_hidden_to_output(model: Conv_Deep_QBM, Q, ctx):
-    if model.is_recurrent_weights:
-        last_sl = model.slices.last_hidden
-        for recurrent_layer in range(model.num_filter_kernels):
-            W_hy = model.weights_hidden_to_output[recurrent_layer]
-            last_len = last_sl[recurrent_layer].stop - last_sl[recurrent_layer].start
-            if W_hy.shape[0] != last_len:
-                if model.pooling_type == "deterministic" and last_sl[recurrent_layer] == model.slices.conv[recurrent_layer]:
-                    W_hy = W_hy[np.asarray(ctx.pooled_idx[recurrent_layer], dtype=int), :]
-                elif ctx.hidden_row_map is not None:
-                    raise NotImplementedError("Unclamped QUBO with probabilistic pooling not implemented")
-                    W_hy = W_hy[np.asarray(ctx.hidden_row_map, dtype=int), :]
-                else:
-                    raise ValueError()
-            Q[last_sl[recurrent_layer], model.slices.out] += W_hy
-    else:
-        last_sl = model.slices.last_hidden
-        assert len(last_sl) == 1
-        W_hy = model.weights_hidden_to_output[0]
-        last_len = last_sl[0].stop - last_sl[0].start
-        # if W_hy.shape[0] != last_len:
-        #     if model.pooling_type == "deterministic" and last_sl[0] == model.slices.conv[0]:
-        #         W_hy = W_hy[np.asarray(ctx.pooled_idx[0], dtype=int), :]
-        #     elif ctx.hidden_row_map is not None:
-        #         raise NotImplementedError("Unclamped QUBO with probabilistic pooling not implemented")
-        #         W_hy = W_hy[np.asarray(ctx.hidden_row_map, dtype=int), :]
-        #     else:
-        #         raise ValueError()
-        Q[last_sl[0], model.slices.out] += W_hy
+    for idx, last_sl in enumerate(model.slices.last_hidden):
+        W_hy = model.weights_hidden_to_output[idx]
+        Q[last_sl, model.slices.out] += W_hy
     return Q
 
 
 
-def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
+def scale_qubo(Q: np.ndarray, model: Conv_Deep_QBM) -> np.ndarray:
+    """scale weights of the sequential layers to fit max and min QUBO values"""
+    max_val = np.max(Q)
+    min_val = np.min(Q)
+    abs_max = max(abs(max_val), abs(min_val))
+
+    # for sl in model.slices.seq_layers[0]:
+    #     Q[sl, sl] = Q[sl, sl] / abs_max  # scale to 80% of max abs value
+    Q = Q / abs_max
+    return Q
+
+
+
+def build_unclamped_qubo(model: Conv_Deep_QBM, ctx, beta_eff: float, do_conv_label_bias=False, label_vec=None) -> np.ndarray:
     n = model.spec.n_hidden + model.spec.n_out
     Q = np.zeros((n, n), dtype=float)
 
@@ -152,10 +141,10 @@ def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
     # Conv
     Q = add_conv_biases(model, Q, ctx)
     # Sequential
-    Q = add_seq_weights(model, Q)
-
-    # Hidden biases sequential
-    Q = add_seq_biases(model, Q)
+    if len(model.sequential_layer_sizes) > 0:
+        Q = add_seq_weights(model, Q)
+        # Hidden biases sequential
+        Q = add_seq_biases(model, Q)
     # Hidden -> Output
     Q = add_weights_hidden_to_output(model, Q, ctx)
 
@@ -163,10 +152,17 @@ def build_unclamped_qubo(model, ctx, beta_eff: float) -> np.ndarray:
     Q[model.slices.out, model.slices.out] += np.triu(model.weights_output_output, k=1)
     Q[model.slices.out, model.slices.out] += np.diag(model.biases_output)
 
+    if do_conv_label_bias:
+        for idx, conv_sl in enumerate(model.slices.conv):
+            conv_label_bias = model.conv_label_bias[idx]
+            Q[conv_sl, model.slices.out] += conv_label_bias
+
+    #Q = scale_qubo(Q, model)
+
     return Q / float(beta_eff)
 
 
-def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float) -> np.ndarray:
+def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float, do_conv_label_bias=False) -> np.ndarray:
     n = model.spec.n_hidden
     Q = np.zeros((n, n), dtype=float)
 
@@ -177,24 +173,27 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float) -> np
 
     # Conv
     Q = add_conv_biases(model, Q, ctx)
-    # Sequential
-    Q = add_seq_weights(model, Q)
 
-    # Hidden biases sequential
-    Q = add_seq_biases(model, Q)
-    # Hidden -> Output
-    #Q = add_weights_hidden_to_output(model, Q, ctx)
+    # Sequential
+    if len(model.sequential_layer_sizes) > 0:
+        Q = add_seq_weights(model, Q)
+        # Hidden biases sequential
+        Q = add_seq_biases(model, Q)
 
     # label bias
-    if model.weights_seq_recurrent is not None:
-        for recurrent_layer in range(model.num_filter_kernels):
-            last_sl = model.slices.last_hidden[recurrent_layer]
-            eff = (model.weights_hidden_to_output[recurrent_layer] @ label_vec.reshape(-1, 1)).reshape(-1)
-            Q[last_sl, last_sl] += np.diag(eff)
-    else:
-        last_sl = model.slices.last_hidden[0]
-        eff = (model.weights_hidden_to_output[0] @ label_vec.reshape(-1, 1)).reshape(-1)
+    for idx, last_sl in enumerate(model.slices.last_hidden):
+        k = label_vec.reshape(-1, 1)
+        eff = (model.weights_hidden_to_output[idx] @ label_vec.reshape(-1, 1)).reshape(-1)
         Q[last_sl, last_sl] += np.diag(eff)
+
+    if do_conv_label_bias:
+        for idx, conv_sl in enumerate(model.slices.conv):
+            conv_label_bias = (model.conv_label_bias[idx] @ label_vec.reshape(-1, 1)).reshape(-1)
+            Q[conv_sl, conv_sl] += np.diag(conv_label_bias)
+
+
+
+    #Q = scale_qubo(Q, model)
 
     return Q / float(beta_eff)
 

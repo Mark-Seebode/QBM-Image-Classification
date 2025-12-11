@@ -54,6 +54,8 @@ class Conv_Deep_QBM(MODEL):
                             self.biases_sequential_units,
                             self.biases_output] = self.init_params(is_recurrent_weights)
 
+        self.conv_label_bias = np.random.uniform(-1, 1, (self.num_filter_kernels, self.num_active_units_per_layer[1], self.num_label_nodes))
+
         self.param_string = param_string
 
         self.load_path = load_path
@@ -140,7 +142,10 @@ class Conv_Deep_QBM(MODEL):
 
 
     def init_weights_hidden_to_output(self, last_hidden_layer_dim: int, num_output_units: int):
-        weights = np.random.uniform(-1, 1, (last_hidden_layer_dim, num_output_units))
+        if len(self.sequential_layer_sizes) == 0:
+            weights = np.random.uniform(-1, 1, (self.num_filter_kernels, last_hidden_layer_dim, num_output_units))
+        else:
+            weights = np.random.uniform(-1, 1, (1, last_hidden_layer_dim, num_output_units))
         return weights
 
 
@@ -184,15 +189,11 @@ class Conv_Deep_QBM(MODEL):
 
         # fan_in = self.kernel_size * self.kernel_size
         # std = np.sqrt(2.0 / fan_in)  # He init
-        kernel_weights = np.random.uniform(-1, 1, (self.num_filter_kernels, self.kernel_size, self.kernel_size))
+        kernel_weights = np.zeros( (self.num_filter_kernels, self.kernel_size, self.kernel_size))
 
-        if len(self.sequential_layer_sizes) == 0:
-            weights_pool_to_first_seq = np.random.uniform(-1, 1,
-                                                          (self.num_filter_kernels, self.num_active_units_per_layer[1],
-                                                           self.num_label_nodes))
-        else:
+        if len(self.sequential_layer_sizes) > 0:
             weights_pool_to_first_seq = np.random.uniform(-1, 1,  (self.num_filter_kernels, self.num_active_units_per_layer[1], self.sequential_layer_sizes[0]))
-        weights_sequential_layer.append(weights_pool_to_first_seq)
+            weights_sequential_layer.append(weights_pool_to_first_seq)
 
         # hidden -> hidden (interlayer)
         weights_sequential_current = []
@@ -210,9 +211,7 @@ class Conv_Deep_QBM(MODEL):
             weights_intralayer_sequential.append(weights_intralayer_sequential_current)
 
         # Last hidden -> output
-        weights_hidden_to_output.append(
-            self.init_weights_hidden_to_output(self.num_active_units_per_layer[-1], self.num_label_nodes)
-        )
+        weights_hidden_to_output = self.init_weights_hidden_to_output(self.num_active_units_per_layer[-1], self.num_label_nodes)
 
         return (
             kernel_weights,

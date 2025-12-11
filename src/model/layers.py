@@ -103,7 +103,7 @@ def last_hidden_slice(seq_layers, pool_slices, num_recurrent_layers) -> list[sli
         for seq_layer in seq_layers:
             last_hidden_sl.append(seq_layer[-1])
     else:
-       last_hidden_sl = pool_slices
+       last_hidden_sl =pool_slices
     return last_hidden_sl
 
 

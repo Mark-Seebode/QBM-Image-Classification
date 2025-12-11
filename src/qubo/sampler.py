@@ -101,7 +101,7 @@ class LocalSASampler:
 
 class DWaveAdapter:
     # TODO: PQA support
-    def __init__(self, solver, api_token: str, dwave_token, groupQpuToken_name: str, num_reads: int, embedding=None, seed: int | None = None, luna: bool = True):
+    def __init__(self, solver, api_token: str, dwave_token, groupQpuToken_name: str, num_reads: int, embedding=None, seed: int | None = None, luna: bool = False):
         self.solver_backend = solver
         self.solver = solver
         self.embedding = embedding
@@ -111,6 +111,7 @@ class DWaveAdapter:
         self.luna = luna
         self.embedding_clamped = None
         self.embedding_unclamped = None
+        self.qpu_time_used = 0
 
         if luna:
             try:
@@ -164,16 +165,24 @@ class DWaveAdapter:
 
 
     def get_backend(self, group_qpu_token, label, qubo_as_bqm):
-        # if label is None:
-        #     this_embedding = self.find_embedding_with_client(
-        #         qubo_as_bqm, True, label) if self.embedding_unclamped is None else self.embedding_unclamped
-        # else:
-        #     this_embedding = self.find_embedding_with_client(
-        #         qubo_as_bqm, False, label) if self.embedding_clamped is None else self.embedding_clamped
-        #
-        # print(this_embedding)
+        if label is None:
+            this_embedding = self.find_embedding_with_client(
+                qubo_as_bqm, True, label) if self.embedding_unclamped is None else self.embedding_unclamped
+        else:
+            this_embedding = self.find_embedding_with_client(
+                qubo_as_bqm, False, label) if self.embedding_clamped is None else self.embedding_clamped
 
-        backend = DWaveQpu(qpu_backend=self.solver, token=group_qpu_token)
+        print(this_embedding)
+
+        embedding_cfg = DWaveQpu.Embedding(
+            initial_chains=this_embedding,
+            skip_initialization=True,
+            return_overlap=False,
+            threads=4,
+            random_seed=self.seed,
+        )
+
+        backend = DWaveQpu(embedding_parameters=embedding_cfg, qpu_backend=self.solver, token=group_qpu_token)
 
         return backend
 
@@ -228,6 +237,7 @@ class DWaveAdapter:
                                                              num_reads=sample_count,
                                                              answer_mode='raw'
                                                              ).sampleset
+
             #print(f"    QPU time used: {embedded_answer.info['timing']['qpu_access_time']} microseconds")
             #print("QPU time used: ", self.qpu_time_used)
             #raise Exception("Not implemented")
@@ -239,6 +249,7 @@ class DWaveAdapter:
                                                              num_reads=sample_count,
                                                              answer_mode='raw'
                                                              ).sampleset
+        self.qpu_time_used += embedded_answer.info['timing']['qpu_access_time']
         answer = unembed_sampleset(target_sampleset=embedded_answer,
                                    embedding=this_embedding,
                                    source_bqm=source_bqm_unembedded)
@@ -272,13 +283,6 @@ class DWaveAdapter:
             embedding, embedding_found = minorminer.find_embedding(
                 target_edges, self.solver_backend.edges, return_overlap=True
             )
-        # adapted from: https://support.dwavesys.com/hc/en-us/community
-        # /posts/1500001417242-Solved-How-to-find-out-the-number-of-qubits
-        # -used-to-solve-a-problem
-        # print(f"Number of logical variables: {len(embedding.keys())}")
-        # print(f"Number of physical qubits used in embedding: "
-        #       f"{sum(len(chain) for chain in embedding.values())}"
-        #         )
 
 
         if self.solver == 'Advantage_system4.1' or self.solver == 'Advantage_system7.1':
@@ -289,10 +293,6 @@ class DWaveAdapter:
                                                       node_size=3, width=.3)
 
         plt.show()
-        #path = PurePath()
-       ## path = Path(path / 'embeddings')
-        #path.mkdir(mode=0o770, exist_ok=True)
-        #plt.savefig("embeddings/cdqbm_embedding10f3k24168.png", transparent=True)
 
         if label is None:
             self.embedding_unclamped = embedding

@@ -24,7 +24,9 @@ def train_one_iteration(
     beta_eff: float,
     lr: float,
     kernel_change_history:list[int],
+    sample_change_history:list[int],
     one_hot: bool = False,
+    convLabel_bias: bool = False
 ):
     (
         errors_biases_conv,
@@ -41,6 +43,8 @@ def train_one_iteration(
         errors_weights_output_output
     ) = initialize_zero_errors_weights(model)
 
+    errors_conv_label_bias = np.zeros_like(model.conv_label_bias)
+
     n = len(X)
     tot_loss, tot_err = 0.0, 0.0
     prev_kernel_weights = model.kernel_weights.copy()
@@ -51,8 +55,24 @@ def train_one_iteration(
         else:
             lab = np.array([int(y)], dtype=float)
 
-        out_c = run_clamped(model, x, lab, beta_eff)
-        out_u = run_unclamped(model, x, beta_eff, one_hot)
+
+
+        out_c = run_clamped(model, x, lab, beta_eff, convLabel_bias)
+        if convLabel_bias:
+            out_u = run_unclamped(model, x, beta_eff, one_hot, convLabel_bias, lab)
+        else:
+            out_u = run_unclamped(model, x, beta_eff, one_hot)
+
+        # track change in samples
+        samples_clamped = out_c.samples
+        # remove last two entries in unclamped samples if output nodes are included
+        samples_unclamped = out_u.samples
+        if model.num_label_nodes > 0:
+            samples_unclamped = samples_unclamped[:, :-model.num_label_nodes]
+
+
+        sample_diff = np.mean(np.abs(samples_clamped - samples_unclamped))
+        sample_change_history.append(sample_diff)
 
 
         if not one_hot:
@@ -73,8 +93,9 @@ def train_one_iteration(
             avgs_weights_sequential_layers_c,
             avgs_weights_seq_recurrent_c,
             avgs_weights_hidden_to_output_c,
-            avgs_weights_output_output_c
-        ) = get_average_configuration_single(model, out_c, x, y=lab)
+            avgs_weights_output_output_c,
+            avgs_conv_label_bias_c
+        ) = get_average_configuration_single(model, out_c, x, y=lab, convLabel_bias=convLabel_bias, conv_label=lab)
 
         (
             avgs_biases_conv_units_u,
@@ -85,8 +106,9 @@ def train_one_iteration(
             avgs_weights_sequential_layers_u,
             avgs_weights_seq_recurrent_u,
             avgs_weights_hidden_to_output_u,
-            avgs_weights_output_output_u
-        ) = get_average_configuration_single(model, out_u, x)
+            avgs_weights_output_output_u,
+            avgs_conv_label_bias_u
+        ) = get_average_configuration_single(model, out_u, x, convLabel_bias=convLabel_bias, conv_label=lab)
 
         errors_biases_conv += (avgs_biases_conv_units_c - avgs_biases_conv_units_u)
         errors_weights_kernels += (avgs_kernel_weights_c - avgs_kernel_weights_u)
@@ -136,6 +158,9 @@ def train_one_iteration(
                 errors_weights_hidden_to_output[recurrent_layer] += (avgs_weights_hidden_to_output_c[recurrent_layer] - avgs_weights_hidden_to_output_u[recurrent_layer])
         else:
             errors_weights_hidden_to_output[0] += (avgs_weights_hidden_to_output_c[0] - avgs_weights_hidden_to_output_u[0])
+
+        if convLabel_bias:
+            errors_conv_label_bias += (avgs_conv_label_bias_c - avgs_conv_label_bias_u)
 
         errors_biases_out += (avgs_biases_output_c - avgs_biases_output_u)
         errors_weights_output_output += (avgs_weights_output_output_c - avgs_weights_output_output_u)
@@ -201,6 +226,9 @@ def train_one_iteration(
     errors_biases_out /= X.shape[0]
     model.biases_output -= lr * errors_biases_out
     model.weights_output_output -= lr * errors_weights_output_output
+
+    if convLabel_bias:
+        model.conv_label_bias -= lr * errors_conv_label_bias / X.shape[0]
 
     delta = model.kernel_weights - prev_kernel_weights
     kernel_change = np.linalg.norm(delta)
@@ -278,7 +306,7 @@ def calculate_avg_biases(sample_matrix, model, is_unclamped: bool, label):
     )
 
 
-def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.ndarray, y: np.ndarray = None):
+def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.ndarray, y: np.ndarray = None, convLabel_bias=False, conv_label:np.ndarray=None):
     unclamped = y is None
     label = None if unclamped else np.array(y).flatten() # TODO: check shape
 
@@ -289,6 +317,7 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
      avgs_weights_seq_recurrent,
      avgs_weights_hidden_to_output,
      avgs_weights_output_output) = initialize_zero_errors_weights(model)
+    avgs_conv_label_bias = np.zeros_like(model.conv_label_bias)
 
     #sample_matrix = np.vstack([samples.samples])
     sample_matrix = samples.samples
@@ -316,7 +345,7 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
 
         #avgs_kernel_weights[recurrent_layer] /= len(samples.ctx.pooled_idx[recurrent_layer])
 
-    if len(model.slices.seq_layers) > 0:
+    if len(model.sequential_layer_sizes) > 0:
         # TODO: weights pooled to first seq layer are stored here at index 0 -> have to start at 1
         #  at weights_sequential_layers. Use separate variable?
 
@@ -404,6 +433,22 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
         triu = np.triu_indices(model.num_label_nodes, k=1)
         avgs_weights_output_output[triu] += outer[triu]
 
+    # conv_label_biases
+    if convLabel_bias:
+        if not unclamped:
+            c_label = np.array(conv_label).flatten()
+            for o in range(model.num_label_nodes):
+                for l, conv_sl in enumerate(model.slices.conv):
+                    y_last = sample_matrix[:, conv_sl]  # (n_reads, n_hidden_last)
+                    avgs_conv_label_bias[l][:, o] += c_label[o] * y_last.mean(axis=0)
+        else:
+            for l, conv_sl in enumerate(model.slices.conv):
+                x_out = sample_matrix[:, model.slices.out]  # E[y_o]
+                y_last = sample_matrix[:, conv_sl]  # all last hidden
+                avgs_conv_label_bias[l] += (y_last.T @ x_out) / n_reads
+
+
+
     return (
             avgs_biases_conv_units,
             avgs_biases_sequential,
@@ -413,7 +458,8 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
             avgs_weights_sequential_layers,
             avgs_weights_seq_recurrent,
             avgs_weights_hidden_to_output,
-            avgs_weights_output_output
+            avgs_weights_output_output,
+            avgs_conv_label_bias
         )
 
 
@@ -424,6 +470,8 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
     acc_list = []
 
     kernel_change_history = []
+    sample_change_history = []
+    conv_label = True
     for epoch in tqdm(range(1, epochs + 1),
                       desc="Epochs",
                       ncols=100, leave=False):
@@ -448,6 +496,8 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
                 if len(x_batch) == 0:
                     raise ValueError("Empty batch encountered during training")
 
+                if epoch == 100:
+                    conv_label = False
 
                 try:
                     loss = train_one_iteration(
@@ -455,7 +505,9 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
                             beta_eff=beta_eff,
                             lr=lr,
                             kernel_change_history=kernel_change_history,
+                            sample_change_history=sample_change_history,
                             one_hot=one_hot,
+                            convLabel_bias=conv_label
                         )
 
                 except Exception as e:
@@ -475,7 +527,8 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
             run = run_unclamped(
                 model, test_x[i],
                 beta_eff=float(beta_eff),
-                one_hot=bool(one_hot)
+                one_hot=bool(one_hot),
+                do_conv_label_bias=conv_label
             )
             pred = int(np.argmax(run.probs))
             predictions.append(pred)
@@ -493,6 +546,18 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
             auc = roc_auc_score(Y_true, np.stack(probs_all, axis=0), average="macro", multi_class="ovr")
         auc_list.append(auc)
         acc_list.append(acc)
+
+
+    import matplotlib.pyplot as plt
+    # plot samples change history
+    plt.figure(figsize=(10, 5))
+    plt.plot(range(1, len(sample_change_history) + 1), sample_change_history, marker='o')
+    plt.title('Sample Change History')
+    plt.xlabel('Iteration')
+    plt.ylabel('Average Sample Change')
+    plt.grid()
+    plt.tight_layout()
+    plt.show()
 
 
     # #plot auc_list and acc_list

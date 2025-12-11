@@ -11,10 +11,10 @@ class RunOutputs:
     ctx:     any
 
 def run_unclamped(model, x_img, beta_eff: float,
-                  one_hot: bool) -> RunOutputs:
+                  one_hot: bool, do_conv_label_bias=False, label_vec=None) -> RunOutputs:
     ctx = prepare_context(model, x_img)
 
-    Q = build_unclamped_qubo(model, ctx, beta_eff)
+    Q = build_unclamped_qubo(model, ctx, beta_eff, do_conv_label_bias, label_vec)
     samples = model.sampler.sample_Q(Q)
 
     out = samples[:, model.slices.out].mean(axis=0)
@@ -26,10 +26,10 @@ def run_unclamped(model, x_img, beta_eff: float,
         probs = (out / s).astype(np.float32) if s > 0 else np.full_like(out, 1/len(out))
     return RunOutputs(samples=samples, probs=probs, ctx=ctx)
 
-def run_clamped(model, x_img, label_vec, beta_eff: float) -> RunOutputs:
+def run_clamped(model, x_img, label_vec, beta_eff: float, do_conv_label_bias=False) -> RunOutputs:
     ctx = prepare_context(model, x_img)
 
-    Q = build_clamped_qubo(model, ctx, np.asarray(label_vec, float), beta_eff)
+    Q = build_clamped_qubo(model, ctx, np.asarray(label_vec, float), beta_eff, do_conv_label_bias)
     samples = model.sampler.sample_Q(Q, label_vec)
     return RunOutputs(samples=samples, probs=None, ctx=ctx)
 

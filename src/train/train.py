@@ -19,14 +19,14 @@ def nll_from_probs_binary(probs: np.ndarray, y: int, eps=1e-12) -> float:
     return float(-np.log(max(p, eps)))
 
 def train_one_iteration(
-    model,
+    model: Conv_Deep_QBM,
     X, Y,
     beta_eff: float,
     lr: float,
     kernel_change_history:list[int],
     sample_change_history:list[int],
     one_hot: bool = False,
-    convLabel_bias: bool = False
+    convLabel_bias: bool = False,
 ):
     (
         errors_biases_conv,
@@ -44,10 +44,13 @@ def train_one_iteration(
     ) = initialize_zero_errors_weights(model)
 
     errors_conv_label_bias = np.zeros_like(model.conv_label_bias)
+    errors_seq_label_bias = zero_structure_like(model.sequential_label_bias)
 
     n = len(X)
     tot_loss, tot_err = 0.0, 0.0
     prev_kernel_weights = model.kernel_weights.copy()
+
+    all_samples_c = []
     for i, (x, y) in enumerate(zip(X, Y), 1):
         if one_hot:
             lab = np.zeros(model.num_label_nodes, dtype=float)
@@ -65,8 +68,9 @@ def train_one_iteration(
 
         # track change in samples
         samples_clamped = out_c.samples
-        # remove last two entries in unclamped samples if output nodes are included
         samples_unclamped = out_u.samples
+        all_samples_c.append(samples_clamped)
+        # remove last two entries in unclamped samples if output nodes are included
         if model.num_label_nodes > 0:
             samples_unclamped = samples_unclamped[:, :-model.num_label_nodes]
 
@@ -84,6 +88,7 @@ def train_one_iteration(
 
 
 
+
         (
             avgs_biases_conv_units_c,
             avgs_biases_sequential_c,
@@ -94,7 +99,8 @@ def train_one_iteration(
             avgs_weights_seq_recurrent_c,
             avgs_weights_hidden_to_output_c,
             avgs_weights_output_output_c,
-            avgs_conv_label_bias_c
+            avgs_conv_label_bias_c,
+            avgs_seq_label_bias_c,
         ) = get_average_configuration_single(model, out_c, x, y=lab, convLabel_bias=convLabel_bias, conv_label=lab)
 
         (
@@ -107,7 +113,8 @@ def train_one_iteration(
             avgs_weights_seq_recurrent_u,
             avgs_weights_hidden_to_output_u,
             avgs_weights_output_output_u,
-            avgs_conv_label_bias_u
+            avgs_conv_label_bias_u,
+            avgs_seq_label_bias_u,
         ) = get_average_configuration_single(model, out_u, x, convLabel_bias=convLabel_bias, conv_label=lab)
 
         errors_biases_conv += (avgs_biases_conv_units_c - avgs_biases_conv_units_u)
@@ -161,6 +168,8 @@ def train_one_iteration(
 
         if convLabel_bias:
             errors_conv_label_bias += (avgs_conv_label_bias_c - avgs_conv_label_bias_u)
+            for i in range(len(errors_seq_label_bias)):
+                errors_seq_label_bias[i] += (avgs_seq_label_bias_c[i] - avgs_seq_label_bias_u[i])
 
         errors_biases_out += (avgs_biases_output_c - avgs_biases_output_u)
         errors_weights_output_output += (avgs_weights_output_output_c - avgs_weights_output_output_u)
@@ -230,14 +239,128 @@ def train_one_iteration(
     if convLabel_bias:
         model.conv_label_bias -= lr * errors_conv_label_bias / X.shape[0]
 
+        [model.sequential_label_bias[i] - lr * errors_seq_label_bias[i] / X.shape[0] for i in range(len(model.sequential_label_bias))]
+
     delta = model.kernel_weights - prev_kernel_weights
     kernel_change = np.linalg.norm(delta)
 
     kernel_change_history.append(kernel_change)
 
+    if model.centerize:
+        update_biases_with_centers(model, all_samples_c, one_hot, Y)
+
+        update_centers(model, all_samples_c, Y, one_hot)
 
     return tot_loss / max(1, n)
 
+def update_biases_with_centers(model:Conv_Deep_QBM, all_samples_c, uses_one_hot: bool, label_batch):
+    """
+       a= a + ν·W (yd −β)
+       b=b + ν·W(xd−α)+ν·V (zd−γ)
+       c=c+ ν·V(yd −β)
+       """
+
+    avg_samples_clamped = np.mean(np.vstack(all_samples_c), axis=0)
+    # one hot encode labels if model uses one hot encoding
+    if uses_one_hot:
+        label_batch_one_hot = []
+        for lbl in label_batch:
+            lab = np.zeros(model.num_label_nodes, dtype=float)
+            lab[lbl] = 1.0
+            label_batch_one_hot.append(lab)
+        label_batch = np.array(label_batch_one_hot)
+    mean_out = np.mean(label_batch, axis=0)
+
+    v = 0.95
+    # update conv biases
+    for fk in range(model.num_filter_kernels):
+        if len(model.sequential_layer_sizes) > 0:
+            first_seq_sl = model.slices.seq_layers[0][0]
+            W = model.weights_sequential_layer[0][fk]
+            avg_first_sq_sl = avg_samples_clamped[first_seq_sl]
+            model.biases_conv_units[fk] += np.sum(v * W @ (avg_first_sq_sl - model.center_seq[0][0]))
+        # else:
+        #     for idx, last_sl in enumerate(model.slices.last_hidden):
+        #         W = model.weights_hidden_to_output[idx]
+        #         model.biases_conv_units[fk] += np.sum(v * W @ (mean_out - model.center_out))
+
+    # update sequential biases
+    for idx, seq_layer in enumerate(model.slices.seq_layers[0]):
+        # similiar like before but now preverious layer and following layer are needed for gradient calculation
+        if idx == 0:
+            for fk in range(model.num_filter_kernels):
+                for c, conv_sl in enumerate(model.slices.conv):
+                    W_prev = model.weights_sequential_layer[0][fk]
+                    avg_conv_sl = avg_samples_clamped[conv_sl]
+                    model.biases_sequential_units[0][idx] += v * W_prev.T @ (avg_conv_sl - model.center_conv[fk])
+            if len(model.slices.seq_layers[0]) > 1: # not only one layer
+                next_slice = model.slices.seq_layers[0][idx + 1]
+                W_next = model.weights_sequential_layer[1][idx]
+                avg_next_sl = avg_samples_clamped[next_slice]
+                model.biases_sequential_units[0][idx] += v * W_next @ (avg_next_sl - model.center_seq[0][idx + 1])
+            # else:
+            #     for i, last_sl in enumerate(model.slices.last_hidden):
+            #         W_next = model.weights_hidden_to_output[i]
+            #         model.biases_sequential_units[0][idx] += v * W_next @ (mean_out - model.center_out)
+        else:
+            prev_slice = model.slices.seq_layers[0][idx - 1]
+            W_prev = model.weights_sequential_layer[1][idx - 1]
+            avg_prev_sl = avg_samples_clamped[prev_slice]
+            model.biases_sequential_units[0][idx] += v * W_prev.T @ (avg_prev_sl - model.center_seq[0][idx - 1])
+
+            if idx < len(model.slices.seq_layers[0]) - 2: # not last layer
+                next_slice = model.slices.seq_layers[0][idx + 1]
+                W_next = model.weights_sequential_layer[1][idx + 1]
+                avg_next_sl = avg_samples_clamped[next_slice]
+                model.biases_sequential_units[0][idx] += v * W_next @ (avg_next_sl - model.center_seq[0][idx + 1])
+            # else:
+            #     for i, last_sl in enumerate(model.slices.last_hidden):
+            #         W_next = model.weights_hidden_to_output[i]
+            #         model.biases_sequential_units[0][idx] += v * W_next @ (mean_out - model.center_out)
+
+    #update out biases
+
+    # if len(model.slices.seq_layers[0]) >= 1:
+    #     for i, last_sl in enumerate(model.slices.last_hidden):
+    #         W = model.weights_hidden_to_output[i]
+    #         avg_last_sl = avg_samples_clamped[last_sl]
+    #         model.biases_output += v * W.T @ (avg_last_sl - model.center_seq[0][-1])
+    else:
+      pass
+
+
+
+
+
+def update_centers(model:Conv_Deep_QBM, all_samples_c, label_batch, uses_one_hot: bool):
+    # average samples clamped
+    v = 0.95
+    #β = (1 − ν) · β + ν · yd
+    avg_samples_clamped = np.mean(np.vstack(all_samples_c), axis=0)
+
+    # update hidden beta
+    for fk in range(model.num_filter_kernels):
+        mean_h = avg_samples_clamped[model.slices.conv[fk]]
+        model.center_conv[fk] = (1.0 - v) *model.center_conv[fk] + v * mean_h
+
+    for sl_idx, seq_layer in enumerate(model.slices.seq_layers):
+        for s, sl in enumerate(seq_layer):
+            mean_h = avg_samples_clamped[sl]
+            model.center_seq[sl_idx][s] = (1.0 - v) * model.center_seq[sl_idx][s] + v * mean_h
+
+    # one hot encode labels if model uses one hot encoding
+    if uses_one_hot:
+        label_batch_one_hot = []
+        for lbl in label_batch:
+            lab = np.zeros(model.num_label_nodes, dtype=float)
+            lab[lbl] = 1.0
+            label_batch_one_hot.append(lab)
+        label_batch = np.array(label_batch_one_hot)
+    mean_out = np.mean(label_batch, axis=0)
+    #model.center_out = sigmoid(model.biases_output)#(1.0 - v) * model.center_out + v * mean_out
+
+def sigmoid(x):
+    return np.exp(x)/(1+np.exp(x))
 
 def initialize_zero_errors_biases(model: Conv_Deep_QBM):
     errors_biases_conv = np.zeros_like(model.biases_conv_units)
@@ -275,29 +398,35 @@ def calculate_avg_biases(sample_matrix, model, is_unclamped: bool, label):
      avgs_biases_sequential,
      avgs_biases_output) = initialize_zero_errors_biases(model)
     avg_biases = sample_matrix.mean(axis=0)
+
     for fk in range(model.num_filter_kernels):
         if model.hidden_bias_type == "shared":
             conv_biases = avg_biases[model.slices.conv[fk]]
-            avgs_biases_conv_units[fk] += np.sum(conv_biases)
-        elif model.hidden_bias_type == "none":
-            pass  # keep zeros
-        else:  # case "individual"
-            # conv biases
-            raise NotImplementedError("Individual hidden biases buggy")
-            pooled_idx = np.asarray(model.pooled_units, dtype=int)
-            pooled_marginals = avg_biases[:num_pooled_units]
-            avgs_biases_conv_units[pooled_idx] += pooled_marginals.astype(avgs_biases_conv_units.dtype)
+            alpha_conv = model.center_conv[fk]
+            centered_bias = conv_biases #- alpha_conv
+            avgs_biases_conv_units[fk] += np.sum(centered_bias)
+        else: # case "individual"
+            conv_biases = avg_biases[model.slices.conv[fk]]
+            alpha_conv = model.center_conv[fk]  # same shape
+            centered_bias = conv_biases #- alpha_conv
+            avgs_biases_conv_units[fk] += centered_bias
+
     if len(model.slices.seq_layers) > 0:
         # sequential biases
         for l, seq_layer in enumerate(model.slices.seq_layers):
             for s, sl in enumerate(seq_layer):
                 avg_biases_for_slice = avg_biases[sl]
-                avgs_biases_sequential[l][s] += avg_biases_for_slice
+                alpha_seq = model.center_seq[l][s]  # same shape
+                centered_bias = avg_biases_for_slice #- alpha_seq
+                avgs_biases_sequential[l][s] += centered_bias
 
     if is_unclamped:
-        avgs_biases_output += avg_biases[model.slices.out]
+        out_biases = avg_biases[model.slices.out]
+        centered_out = out_biases #- model.center_out
+        avgs_biases_output += centered_out
     else:
-        avgs_biases_output += label
+        centered_label = label #- model.center_out
+        avgs_biases_output += centered_label
 
     return (
         avgs_biases_conv_units,
@@ -318,6 +447,7 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
      avgs_weights_hidden_to_output,
      avgs_weights_output_output) = initialize_zero_errors_weights(model)
     avgs_conv_label_bias = np.zeros_like(model.conv_label_bias)
+    avgs_seq_label_bias = zero_structure_like(model.sequential_label_bias)
 
     #sample_matrix = np.vstack([samples.samples])
     sample_matrix = samples.samples
@@ -341,6 +471,7 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
             patch = x_input[np.ix_(rows, cols)]
             global_i = conv_sl.start + local_i
             Eh = float(sample_matrix[:, global_i].mean())
+            Eh = Eh if not model.centerize else Eh - model.center_conv[fk]
             avgs_kernel_weights[fk] += patch * Eh
 
         #avgs_kernel_weights[recurrent_layer] /= len(samples.ctx.pooled_idx[recurrent_layer])
@@ -356,11 +487,15 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
                 first_seq_block = sample_matrix[:, model.slices.seq_layers[recurrent_layer][0]]
                 avgs_weights_sequential_layers[recurrent_layer][0][:] = (pooled_block.T @ first_seq_block) / n_reads
         else:
-            for pool_sl in model.slices.pool:
+            for i, pool_sl in enumerate(model.slices.pool):
                 pooled_block = sample_matrix[:, pool_sl]
                 first_seq_block = sample_matrix[:, model.slices.seq_layers[0][0]]
-                avgs_weights_sequential_layers[0][0][:] = (pooled_block.T @ first_seq_block) / n_reads
 
+                pooled = pooled_block if not model.centerize else pooled_block - model.center_conv[i][0]
+
+                first_seq = first_seq_block if not model.centerize else first_seq_block - model.center_seq[0][0]
+
+                avgs_weights_sequential_layers[0][i] = (pooled.T @ first_seq) / n_reads
 
         # sequential layers -> sequential layers
         if model.is_recurrent_weights:
@@ -377,7 +512,10 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
                 next_slice = model.slices.seq_layers[0][li + 1]
                 prev_block = sample_matrix[:, prev_slice]
                 next_block = sample_matrix[:, next_slice]
-                avgs_weights_sequential_layers[1][li][:] = (prev_block.T @ next_block) / n_reads
+
+                prev = prev_block if not model.centerize else prev_block - model.center_seq[0][li]
+                next = next_block if not model.centerize else next_block - model.center_seq[0][li + 1]
+                avgs_weights_sequential_layers[1][li][:] = (prev.T @ next) / n_reads
 
 
 
@@ -386,7 +524,8 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
             for r, seq_layer in enumerate(model.slices.seq_layers):
                 for s, seq_slice in enumerate(seq_layer):
                     cur_block = sample_matrix[:, seq_slice]
-                    avg_outer = (cur_block.T @ cur_block) / n_reads
+                    block = cur_block if not model.centerize else cur_block - model.center_seq[r]
+                    avg_outer = (block.T @ block) / n_reads
                     size = seq_slice.stop - seq_slice.start
                     triu = np.triu_indices(size, k=1)
                     avgs_weights_interlayer_sequential[r][s][triu] = avg_outer[triu]
@@ -415,6 +554,17 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
         for l, lh_slice in enumerate(last_hidden_slices):
             x_out = sample_matrix[:, model.slices.out]  # E[y_o]
             y_last = sample_matrix[:, lh_slice]  # all last hidden
+
+            if model.centerize:
+                alpha_last = model.center_seq[0][-1] if len(model.sequential_layer_sizes) > 0 \
+                             else float(model.center_conv[l][0])  # depending on your spec
+                alpha_out = model.center_out
+                y_last = y_last - alpha_last
+                x_out = x_out - alpha_out
+            else:
+                y_last = y_last
+                x_out = x_out
+
             avgs_weights_hidden_to_output[l] += (y_last.T @ x_out) / n_reads
     else:
         for o in range(model.num_label_nodes):
@@ -425,10 +575,12 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
     # output -> output
     if unclamped:
         yvars = sample_matrix[:, model.slices.out]
+        yvars = yvars if not model.centerize else yvars -model.center_out
         avg_outer = np.einsum('ni,nj->ij', yvars, yvars) / n_reads
         triu = np.triu_indices(model.num_label_nodes, k=1)
         avgs_weights_output_output[triu] += avg_outer[triu]
     else:
+        label = label if not model.centerize else label - model.center_out
         outer = np.outer(label, label)
         triu = np.triu_indices(model.num_label_nodes, k=1)
         avgs_weights_output_output[triu] += outer[triu]
@@ -441,13 +593,22 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
                 for l, conv_sl in enumerate(model.slices.conv):
                     y_last = sample_matrix[:, conv_sl]  # (n_reads, n_hidden_last)
                     avgs_conv_label_bias[l][:, o] += c_label[o] * y_last.mean(axis=0)
+            if len(model.sequential_layer_sizes) > 1:
+                for o in range(model.num_label_nodes):
+                    for l, seq_sl in enumerate(model.slices.seq_layers[0][:-1]):
+                        y_last = sample_matrix[:, seq_sl]  # (n_reads, n_hidden_last)
+                        avgs_seq_label_bias[l][:, o] += c_label[o] * y_last.mean(axis=0)
         else:
             for l, conv_sl in enumerate(model.slices.conv):
                 x_out = sample_matrix[:, model.slices.out]  # E[y_o]
                 y_last = sample_matrix[:, conv_sl]  # all last hidden
                 avgs_conv_label_bias[l] += (y_last.T @ x_out) / n_reads
 
-
+            if len(model.sequential_layer_sizes) > 1:
+                for l, seq_sl in enumerate(model.slices.seq_layers[0][:-1]):
+                    x_out = sample_matrix[:, model.slices.out]  # E[y_o]
+                    y_last = sample_matrix[:, seq_sl]  # all last hidden
+                    avgs_seq_label_bias[l] += (y_last.T @ x_out) / n_reads
 
     return (
             avgs_biases_conv_units,
@@ -459,7 +620,8 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
             avgs_weights_seq_recurrent,
             avgs_weights_hidden_to_output,
             avgs_weights_output_output,
-            avgs_conv_label_bias
+            avgs_conv_label_bias,
+            avgs_seq_label_bias
         )
 
 
@@ -471,7 +633,7 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
 
     kernel_change_history = []
     sample_change_history = []
-    conv_label = True
+    conv_label = False
     for epoch in tqdm(range(1, epochs + 1),
                       desc="Epochs",
                       ncols=100, leave=False):
@@ -496,8 +658,10 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
                 if len(x_batch) == 0:
                     raise ValueError("Empty batch encountered during training")
 
-                if epoch == 100:
+                if epoch == 1:
                     conv_label = False
+
+
 
                 try:
                     loss = train_one_iteration(
@@ -507,7 +671,7 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
                             kernel_change_history=kernel_change_history,
                             sample_change_history=sample_change_history,
                             one_hot=one_hot,
-                            convLabel_bias=conv_label
+                            convLabel_bias=conv_label,
                         )
 
                 except Exception as e:
@@ -547,6 +711,14 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
         auc_list.append(auc)
         acc_list.append(acc)
 
+        # for fk in range(model.num_filter_kernels):
+        #     conv_units = model.biases_conv_units[fk]
+        #     model.center_conv[fk] = (model.center_conv[fk] * 0.9 + np.mean(conv_units) * 0.1)
+        # if len(model.sequential_layer_sizes) > 0:
+        #     for idx, biases in enumerate(model.biases_sequential_units):
+        #         for i in range(len(model.center_seq[idx])):
+        #             model.center_seq[idx][i] = (model.center_seq[idx][i] * 0.9) + np.mean(biases[i]) * 0.1
+        # model.center_out = (model.center_out * 0.9 + np.mean(model.biases_output) * 0.1)
 
     import matplotlib.pyplot as plt
     # plot samples change history

@@ -19,6 +19,9 @@ def _conv_linear_terms(model, ctx) -> np.ndarray:
 
             if model.hidden_bias_type == "shared":
                 base = base + model.biases_conv_units[fk][0]
+            else: # case model.hidden_bias_type == "individual":
+                base = base + model.biases_conv_units[ctx.pooled_idx[fk]]
+
             bases.append(base)
             # elif model.hidden_bias_type != "none":
             #     base = base
@@ -157,6 +160,12 @@ def build_unclamped_qubo(model: Conv_Deep_QBM, ctx, beta_eff: float, do_conv_lab
             conv_label_bias = model.conv_label_bias[idx]
             Q[conv_sl, model.slices.out] += conv_label_bias
 
+        if len(model.sequential_layer_sizes) > 1:
+            for idx, seq_sl in enumerate(model.slices.seq_layers[0][:-1]):
+                seq_label_bias = model.sequential_label_bias[idx]
+                Q[seq_sl, model.slices.out] += seq_label_bias
+
+
     #Q = scale_qubo(Q, model)
 
     return Q / float(beta_eff)
@@ -191,6 +200,10 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float, do_co
             conv_label_bias = (model.conv_label_bias[idx] @ label_vec.reshape(-1, 1)).reshape(-1)
             Q[conv_sl, conv_sl] += np.diag(conv_label_bias)
 
+        if len(model.sequential_layer_sizes) > 1:
+            for idx, seq_sl in enumerate(model.slices.seq_layers[0][:-1]):
+                seq_label_bias = (model.sequential_label_bias[idx] @ label_vec.reshape(-1, 1)).reshape(-1)
+                Q[seq_sl, seq_sl] += np.diag(seq_label_bias)
 
 
     #Q = scale_qubo(Q, model)

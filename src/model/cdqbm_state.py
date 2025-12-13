@@ -3,7 +3,7 @@ import random
 from pathlib import Path
 import pickle
 import numpy as np
-
+import torch
 from src.model.layers import pooled_indices_for_input, SeqSpec, StackSpec, build_slices, BlockSlices
 from src.model.model_ab import MODEL
 from src.model.geometry import (
@@ -13,10 +13,33 @@ from src.model.geometry import (
 from src.qubo.sampler import LocalSASampler, DWaveAdapter
 import pickle
 
+
+
+def zero_structure_like(obj):
+    """Recursively mirror `obj` structure, replacing ndarrays with zeros of the same shape,
+    sequences with sequences of zeros, and scalars with 0 of the same type."""
+    if isinstance(obj, np.ndarray):
+        return np.zeros_like(obj)
+    if isinstance(obj, list):
+        return [zero_structure_like(x) for x in obj]
+    if isinstance(obj, tuple):
+        return tuple(zero_structure_like(x) for x in obj)
+    # fallback for scalars / other objects
+    try:
+        return type(obj)(0)
+    except Exception:
+        return 0
+
+
+def sigmoid(x):
+    return np.exp(x)/(1+np.exp(x))
+
+
+
 class Conv_Deep_QBM(MODEL):
     def __init__(self, num_visible_nodes, num_lable_nodes, example_image, image_shape=(28,28), seed=77, kernel_size=3, pooling_size=0,
                  pooling_type="deterministic", stride=1, sequential_layer_sizes=None, num_filter_kernels=0, is_recurrent_weights=False,
-                 param_string="", load_path="", speicherort=None, is_restricted=False, parallelize=False,
+                 param_string="", load_path="", speicherort=None, is_restricted=False, parallelize=False, centerize=False,
                  hidden_bias_type="none", solver="SA", num_reads=100, anneal=1000, api_token="", dwave_token="", groupQpuToken_name=""):
 
         self.kernel_size = kernel_size
@@ -29,6 +52,7 @@ class Conv_Deep_QBM(MODEL):
             sequential_layer_sizes = []
         self.sequential_layer_sizes = [int(s) for s in sequential_layer_sizes]
         self.is_recurrent_weights = is_recurrent_weights
+        self.centerize = centerize
 
         (num_hidden_nodes,
          self.num_active_units,
@@ -54,7 +78,28 @@ class Conv_Deep_QBM(MODEL):
                             self.biases_sequential_units,
                             self.biases_output] = self.init_params(is_recurrent_weights)
 
-        self.conv_label_bias = np.random.uniform(-1, 1, (self.num_filter_kernels, self.num_active_units_per_layer[1], self.num_label_nodes))
+        self.conv_label_bias = np.random.normal(0.0, 0.01, (self.num_filter_kernels, self.num_active_units_per_layer[1], self.num_label_nodes))
+
+        self.sequential_label_bias = []
+        for size in sequential_layer_sizes[:-1]:
+            seq_label_bias = np.random.normal(0.0, 0.01, (size, self.num_label_nodes))
+            self.sequential_label_bias.append(seq_label_bias)
+
+        self.center_conv = []
+        for i,  biases in enumerate(self.biases_conv_units):
+            betas_conv_units = np.zeros(self.num_active_units_per_layer[1])
+            betas_conv_units = np.full_like(betas_conv_units, sigmoid(biases) )
+            self.center_conv.append(betas_conv_units)
+        self.center_conv = np.array(self.center_conv)
+
+
+
+        self.center_seq = zero_structure_like(self.biases_sequential_units)
+        for l in range(len(self.center_seq)):
+            for s in range(len(self.center_seq[l])):
+                self.center_seq[l][s] = sigmoid(self.biases_sequential_units[l][s])
+
+        self.center_out = sigmoid(self.biases_output)
 
         self.param_string = param_string
 
@@ -143,9 +188,9 @@ class Conv_Deep_QBM(MODEL):
 
     def init_weights_hidden_to_output(self, last_hidden_layer_dim: int, num_output_units: int):
         if len(self.sequential_layer_sizes) == 0:
-            weights = np.random.uniform(-1, 1, (self.num_filter_kernels, last_hidden_layer_dim, num_output_units))
+            weights = np.random.normal(0.0, 0.01, (self.num_filter_kernels, last_hidden_layer_dim, num_output_units))
         else:
-            weights = np.random.uniform(-1, 1, (1, last_hidden_layer_dim, num_output_units))
+            weights = np.random.normal(0.0, 0.01, (1, last_hidden_layer_dim, num_output_units))
         return weights
 
 
@@ -169,7 +214,7 @@ class Conv_Deep_QBM(MODEL):
 
         # output -> output
         weights_output_output = np.triu(
-            np.random.uniform(-1, 1, (self.num_label_nodes, self.num_label_nodes)), k=1
+            np.random.normal(0.0, 0.01, (self.num_label_nodes, self.num_label_nodes)), k=1
         )
 
         return (
@@ -189,24 +234,24 @@ class Conv_Deep_QBM(MODEL):
 
         # fan_in = self.kernel_size * self.kernel_size
         # std = np.sqrt(2.0 / fan_in)  # He init
-        kernel_weights = np.zeros( (self.num_filter_kernels, self.kernel_size, self.kernel_size))
+        kernel_weights = np.random.normal(0.0, 0.01 ,(self.num_filter_kernels, self.kernel_size, self.kernel_size))
 
         if len(self.sequential_layer_sizes) > 0:
-            weights_pool_to_first_seq = np.random.uniform(-1, 1,  (self.num_filter_kernels, self.num_active_units_per_layer[1], self.sequential_layer_sizes[0]))
+            weights_pool_to_first_seq = np.random.normal(0.0, 0.01,  (self.num_filter_kernels, self.num_active_units_per_layer[1], self.sequential_layer_sizes[0]))
             weights_sequential_layer.append(weights_pool_to_first_seq)
 
         # hidden -> hidden (interlayer)
         weights_sequential_current = []
         for i, num_units in enumerate(self.sequential_layer_sizes[1:]):
             weights_sequential_current.append(
-                np.random.uniform(-1, 1, (self.num_active_units_per_layer[2 + i], num_units)))
+                np.random.normal(0.0, 0.01, (self.num_active_units_per_layer[2 + i], num_units)))
         weights_sequential_layer.append(weights_sequential_current)
 
         # hidden -> hidden (intralayer)
         if not self.is_restricted:
             weights_intralayer_sequential_current = []
             for size in self.sequential_layer_sizes:
-                weights = np.triu(np.random.uniform(-1, 1, size))
+                weights = np.triu(np.random.normal(0.0, 0.01, size))
                 weights_intralayer_sequential_current.append(weights)
             weights_intralayer_sequential.append(weights_intralayer_sequential_current)
 
@@ -228,26 +273,26 @@ class Conv_Deep_QBM(MODEL):
         weights_seq_recurrent = []
 
         for layer in range(self.num_filter_kernels):
-            kernel_weights.append(np.random.uniform(-1, 1, (self.kernel_size, self.kernel_size)))
+            kernel_weights.append(np.random.normal(0.0, 0.01, (self.kernel_size, self.kernel_size)))
 
             # hidden -> hidden (interlayer)
             weights_sequential_current_recurrent = []
             for i, num_units in enumerate(self.sequential_layer_sizes):
                 weights_sequential_current_recurrent.append(
-                    np.random.uniform(-1, 1, (self.num_active_units_per_layer[1 + i], num_units)))
+                    np.random.normal(0.0, 0.01, (self.num_active_units_per_layer[1 + i], num_units)))
             weights_sequential_layer.append(weights_sequential_current_recurrent)
 
             # hidden -> hidden (intralayer)
             if not self.is_restricted:
                 weights_intralayer_sequential_current_recurrent = []
                 for size in self.sequential_layer_sizes:
-                    weights = np.triu(np.random.uniform(-1, 1, size))
+                    weights = np.triu(np.random.normal(0.0, 0.01, size))
                     weights_intralayer_sequential_current_recurrent.append(weights)
                 weights_intralayer_sequential.append(weights_intralayer_sequential_current_recurrent)
 
             weights_recurrent_current = []
             for size in self.sequential_layer_sizes:
-                weights = np.random.uniform(-1, 1, (size, size))
+                weights = np.random.normal(0.0, 0.01, (size, size))
                 weights_recurrent_current.append(weights)
             weights_seq_recurrent.append(weights_recurrent_current)
 
@@ -275,28 +320,31 @@ class Conv_Deep_QBM(MODEL):
     def init_biases(self, is_recurrent_weights: bool):
         biases_conv_units = []
         biases_sequential_units = []
-        biases_conv_units = np.random.uniform(-1, 1,(self.num_filter_kernels, 1))
+
+        if self.hidden_bias_type == "shared":
+            biases_conv_units = np.zeros((self.num_filter_kernels, 1))
         # for recurrent_layer in range(self.num_filter_kernels):
         #     # if self.hidden_bias_type == "shared":
-        #     #     biases_conv_units.append(n[0.0])#np.random.uniform(-1, 1, 1))
+        #     #     biases_conv_units.append(n[0.0])#np.random.normal(0.0, 0.01, 1))
         #     if self.hidden_bias_type == "none":
         #         biases_conv_units.append(np.zeros(self.sequential_layer_sizes))  # TODO: not working
-        #     else:  # self.hidden_bias_type == "individual"
-        #         biases_conv_units.append(np.random.uniform(-1, 1, self.num_conv_units))
+
+        else:  # self.hidden_bias_type == "individual"
+            biases_conv_units.append(np.random.normal(0.0, 1.0, self.num_conv_units))
 
         if is_recurrent_weights:
             for recurrent_layer in range(self.num_filter_kernels):
                 sequential_biases_current_recurrent = []
                 for size in self.sequential_layer_sizes:
-                    sequential_biases_current_recurrent.append(np.random.uniform(-1, 1, size))
+                    sequential_biases_current_recurrent.append(np.zeros( size))
                 biases_sequential_units.append(sequential_biases_current_recurrent)
         else:
             sequential_biases_current_recurrent = []
             for size in self.sequential_layer_sizes:
-                sequential_biases_current_recurrent.append(np.random.uniform(-1, 1, size))
+                sequential_biases_current_recurrent.append(np.zeros( size))
             biases_sequential_units.append(sequential_biases_current_recurrent)
 
-        biases_output = np.random.uniform(-1, 1, self.num_label_nodes)
+        biases_output = np.random.normal(0.0, 0.01, self.num_label_nodes)
         #biases_output = np.array([math.log(0.6/0.4), math.log(0.4/0.6)] )
         print("bias:", biases_output)# initialize output biases to 0
 
@@ -411,5 +459,7 @@ class Conv_Deep_QBM(MODEL):
                 # If it cannot convert to float (e.g., string), ignore it
                 return 0
         return count_nonzero(self.weight_objects)
+
+
 
 

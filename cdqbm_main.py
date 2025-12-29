@@ -111,14 +111,19 @@ def main(seed=19, solver="SA", sample_count=100,
     param_string = name
     print(param_string)
 
-    with open("src/secrets/luna_token.txt", "rb") as f:
-        api_token = f.read().strip().decode("utf-8")
+    try:
+        with open("src/secrets/luna_token.txt", "rb") as f:
+            api_token = f.read().strip().decode("utf-8")
 
-    with open("src/secrets/luna_group_token.txt", "rb") as f:
-        groupQpuToken_name = f.read().strip().decode("utf-8")
+        with open("src/secrets/luna_group_token.txt", "rb") as f:
+            groupQpuToken_name = f.read().strip().decode("utf-8")
 
-    with open("src/secrets/dwave_key.txt", "rb") as f:
-         dwave_token = f.read().strip().decode("utf-8")
+        with open("src/secrets/dwave_key.txt", "rb") as f:
+             dwave_token = f.read().strip().decode("utf-8")
+    except:
+        api_token = ""
+        groupQpuToken_name = ""
+        dwave_token = ""
 
 
     print('Creating QBM...')

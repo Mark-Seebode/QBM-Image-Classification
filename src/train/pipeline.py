@@ -4,11 +4,15 @@ from src.model.inference import prepare_context
 from src.qubo.builder import build_unclamped_qubo, build_clamped_qubo
 from src.model.layers import last_hidden_slice as _last
 
-@dataclass(frozen=True)
 class RunOutputs:
     samples: np.ndarray
     probs:   np.ndarray | None
     ctx:     any
+
+    def __init__(self, samples: np.ndarray, probs: np.ndarray | None, ctx: any):
+        self.samples = samples
+        self.probs = probs
+        self.ctx = ctx
 
 def run_unclamped(model, x_img, beta_eff: float,
                   one_hot: bool, do_conv_label_bias=False, label_vec=None) -> RunOutputs:

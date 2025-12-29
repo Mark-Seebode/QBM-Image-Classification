@@ -36,7 +36,7 @@ def str2bool(v):
 
 
 def main(seed=19, solver="SA", sample_count=100,
-         anneal=1000, beta_eff=1.0, epochs=3, batch_size=10, learning_rate=0.01,
+         anneal=1000, beta_eff=2.0, epochs=3, batch_size=10, learning_rate=0.01, conv_learning_rate=None,
          restricted=True, data_set="mnist", num_classes=2, parallelize=False, save="", name="",
          kernel_size=5, num_kernels=10, sequential_layer_sizes=[16, 8], is_recurrent_weights=False,
          pooling_size=4, pooling_type="probabilistic", hidden_bias_type="shared",
@@ -51,11 +51,11 @@ def main(seed=19, solver="SA", sample_count=100,
     print("Loading data...")
     if data_set == "mnist":
         train_x, train_y = data_loader.get_mnist('src/data/mnist/train-images-idx3-ubyte.gz',
-                                                 'src/data/mnist/train-labels-idx1-ubyte.gz', classes=[0, 1],
-                                                 samples_per_class=50)
+                                                 'src/data/mnist/train-labels-idx1-ubyte.gz', classes=[0, 1, 2, 3]
+                                                 , samples_per_class=20)
         test_x, test_y = data_loader.get_mnist('src/data/mnist/t10k-images-idx3-ubyte.gz',
-                                               'src/data/mnist/t10k-labels-idx1-ubyte.gz', classes=[0, 1],
-                                               samples_per_class=20)
+                                               'src/data/mnist/t10k-labels-idx1-ubyte.gz', classes=[0, 1, 2, 3],
+                                               samples_per_class=5)
     elif data_set == "breastmnist":
         (train_x, train_y), (val_x, val_y), (test_x, test_y) = data_loader.get_medmnist(
             'src/data/medmnist/breastmnist.npz')
@@ -68,9 +68,11 @@ def main(seed=19, solver="SA", sample_count=100,
             test_x, test_y = val_x, val_y
     elif data_set == "fashionmnist":
         train_x, train_y = data_loader.get_fashionmnist('src/data/fashionmnist/train-images-idx3-ubyte',
-                                                        'src/data/fashionmnist/train-labels-idx1-ubyte', classes=[0, 1])
+                                                        'src/data/fashionmnist/train-labels-idx1-ubyte', classes=[0, 1],
+                                                        samples_per_class=100)
         test_x, test_y = data_loader.get_fashionmnist('src/data/fashionmnist/t10k-images-idx3-ubyte',
-                                                      'src/data/fashionmnist/t10k-labels-idx1-ubyte', classes=[0, 1])
+                                                      'src/data/fashionmnist/t10k-labels-idx1-ubyte', classes=[0, 1],
+                                                      samples_per_class=50)
     elif data_set == "miniimagenet":
         (train_x, train_y), (val_x, val_y), (test_x, test_y) = data_loader.get_imagenet(
             root="/Users/markseebode/.cache/kagglehub/datasets/arjunashok33/miniimagenet/versions/1",
@@ -79,8 +81,9 @@ def main(seed=19, solver="SA", sample_count=100,
             test_x, test_y = val_x, val_y
 
     elif data_set == "NEU-CLS-64":
-        train_x, train_y, val_x, val_y, test_x, test_y = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
-                                                                      classes=["in", "sc"], seed=seed, image_size=(28, 28))
+        train_x, train_y, val_x, val_y, test_x, test_y = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
+                                                                      classes=["gg", "rp", "sp", "sc"], seed=seed,
+                                                                        image_size=(28, 28), num_samples_per_class=100)
         if test_on_val:
             test_x, test_y = val_x, val_y
     else:
@@ -108,14 +111,14 @@ def main(seed=19, solver="SA", sample_count=100,
     param_string = name
     print(param_string)
 
-    # with open("src/secrets/luna_token.txt", "rb") as f:
-    #     api_token = f.read().strip().decode("utf-8")
-    #
-    # with open("src/secrets/luna_group_token.txt", "rb") as f:
-    #     groupQpuToken_name = f.read().strip().decode("utf-8")
-    #
-    # with open("src/secrets/dwave_key.txt", "rb") as f:
-    #      dwave_token = f.read().strip().decode("utf-8")
+    with open("src/secrets/luna_token.txt", "rb") as f:
+        api_token = f.read().strip().decode("utf-8")
+
+    with open("src/secrets/luna_group_token.txt", "rb") as f:
+        groupQpuToken_name = f.read().strip().decode("utf-8")
+
+    with open("src/secrets/dwave_key.txt", "rb") as f:
+         dwave_token = f.read().strip().decode("utf-8")
 
 
     print('Creating QBM...')
@@ -127,7 +130,6 @@ def main(seed=19, solver="SA", sample_count=100,
         kernel_size=kernel_size,
         pooling_size=pooling_size,
         pooling_type=pooling_type,   # "probabilistic" | "deterministic"
-        stride=1,
         num_filter_kernels=num_kernels,
         is_recurrent_weights=is_recurrent_weights,
         sequential_layer_sizes=sequential_layer_sizes,
@@ -138,12 +140,13 @@ def main(seed=19, solver="SA", sample_count=100,
         hidden_bias_type=hidden_bias_type,
         solver=solver,
         anneal=anneal,
-        #api_token=api_token,
-        #dwave_token=dwave_token,
+        api_token=api_token,
+        dwave_token=dwave_token,
         num_reads=sample_count,
-        #groupQpuToken_name=groupQpuToken_name,
+        groupQpuToken_name=groupQpuToken_name,
         example_image=train_x[0],
-        parallelize=bool(parallelize)
+        parallelize=bool(parallelize),
+        centerize=False
     )
 
     print('QBM created with:\n'
@@ -155,72 +158,21 @@ def main(seed=19, solver="SA", sample_count=100,
 
 
     print('Training QBM...')
-    epoch_loss_list, acc_list, auc_list = train_model(qbm, train_x, train_y, batch_size, epochs, learning_rate, sample_count, beta_eff, one_hot=one_hot, test_x=test_x, test_y=test_y)
+    epoch_loss_list, acc_list, auc_list, kernel_change_history = train_model(qbm, train_x, train_y, batch_size, epochs, learning_rate, sample_count, beta_eff, conv_learning_rate=conv_learning_rate, one_hot=one_hot, test_x=test_x, test_y=test_y)
     #qbm.save_weights()
     print('QBM trained')
 
-    with open(os.path.join(save, f"acc_per_epoch{seed}.pkl"), "wb") as f:
+    with open(save + f"acc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(acc_list, f)
 
-    with open(os.path.join(save, f"auc_per_epoch{seed}.pkl"), "wb") as f:
+    with open(save + f"auc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(auc_list, f)
 
 
-    # visualize the kernel weights
-    # every k is a 5x5 kernel
-    # for k in qbm.kernel_weights:
-    #     plt.imshow(k.reshape(qbm.kernel_weights[0].shape), cmap='gray')
-    #     plt.title('Learned Kernel')
-    #     plt.colorbar()
-    #     plt.show()
 
 
-
-    # print("Predict on test data...")
-    # predictions = []
-    # probs_all = []
-    # for i in tqdm(range(len(test_x)), desc="Predicting on test data", ncols=80, leave=False):
-    #     run = run_unclamped(
-    #         qbm, test_x[i],
-    #         beta_eff=float(beta_eff),
-    #         one_hot=bool(one_hot)
-    #     )
-    #     pred = int(np.argmax(run.probs))
-    #     predictions.append(pred)
-    #     probs_all.append(run.probs)
-    # print("Predictions:", predictions)
-
-
-    # acc = accuracy_score(test_y, predictions)
-    # f1 = f1_score(test_y, predictions, average="binary" if num_classes == 2 else "macro")
-    # precision = precision_score(test_y, predictions, average="binary" if num_classes == 2 else "macro")
-    # recall = recall_score(test_y, predictions, average="binary" if num_classes == 2 else "macro")
-    #
-    # if num_label_nodes == 1 or num_label_nodes == 2:
-    #     pos_scores = np.array([p[1] for p in probs_all])
-    #     auc = roc_auc_score(test_y, predictions)
-    # else:
-    #     # macro-average AUC with one-vs-rest
-    #     from sklearn.preprocessing import label_binarize
-    #     Y_true = label_binarize(test_y, classes=list(range(num_classes)))
-    #     auc = roc_auc_score(Y_true, np.stack(probs_all, axis=0), average="macro", multi_class="ovr")
-    #
-    # loss_fig = metrics.get_nll_func_per_batch(epoch_loss_list, show_plot=True)
-    # loss_fig.savefig("" + os.path.join(save, f"nll_plot{param_string}.png"))
-    # print(predictions)
-    # cm = confusion_matrix(test_y, predictions)
-    # disp = ConfusionMatrixDisplay(cm, display_labels=class_names)
-    # disp.plot(values_format="d")
-    # plt.title(f"Confusion Matrix ({data_set})")
-    # plt.tight_layout()
-    # plt.savefig("" + os.path.join(save, f"confusion_matrix{param_string}.png"))
-    # plt.show()
-    #
-    # print("Accuracy: ", acc)
-    # print("F1 Score: ", f1)
-    # print("Precision: ", precision)
-    # print("Recall: ", recall)
-    # print("AUC Score: ", auc)
+    if solver != 'SA':
+        print("Total QPU time used (microseconds):", qbm.sampler.qpu_time_used)
 
 
 if __name__ == '__main__':
@@ -228,12 +180,17 @@ if __name__ == '__main__':
 
 
     parser.add_argument('-lr', '--learning_rate',
-                        default=0.001,
+                        default=0.005,
+                        type=float,
+                        help='Learning rate for training')
+
+    parser.add_argument('-clr', '--conv_learning_rate',
+                        default=0.5,
                         type=float,
                         help='Learning rate for training')
 
     parser.add_argument('-r', '--restricted',
-                        default="False",
+                        default="True",
                         type=str2bool,
                         help='Restricted weights between hidden nodes')
 
@@ -243,17 +200,17 @@ if __name__ == '__main__':
                         help='Epochs for training')
 
     parser.add_argument('-b', '--batch_size',
-                        default=100,
+                        default=4,
                         type=int,
                         help='Batchsize for training')
 
     parser.add_argument('-s', '--seed',
-                        default=1111,
+                        default=97,
                         type=int,
                         help='Seed for RNG')
 
     parser.add_argument('-sc', '--sample_count',
-                        default=10,
+                        default=100,
                         type=int,
                         help='Number of samples to take from the solver_backend (reads)')
 
@@ -273,13 +230,15 @@ if __name__ == '__main__':
                         help="Dataset: 'mnist', 'breastmnist', 'pneumoniamnist', 'fashionmnist', 'cifar-10', 'miniimagenet', 'NEU-CLS-64'")
 
     parser.add_argument('--num_classes',
-                        default=2,
+                        default=4,
                         type=int,
                         help='Number of classes in dataset')
+
     parser.add_argument('--parallelize',
                         default=True,
                         type=bool,
                         help='NOT IMPLEMENTED YET')
+
     parser.add_argument('--save',
                         default='out/slurm/',
                         type=str,
@@ -296,14 +255,14 @@ if __name__ == '__main__':
                         help='Size of the convolutional kernel')
 
     parser.add_argument('--num_kernels',
-                        default=10,
+                        default=8,
                         type=int,
                         help='number of convolutional kernels')
 
     parser.add_argument("--sequential_layer_sizes",
                         type=int,
                         nargs="+",
-                        default=[16, 8],
+                        default=[24, 16, 8],
                         help="List of sequential layer sizes",
     )
 
@@ -328,7 +287,8 @@ if __name__ == '__main__':
                         help="Hidden bias type: 'shared', 'none', or 'per-unit'")
 
     parser.add_argument('--one_hot',
-                        default=False,
+                        default=
+                        True,
                         help='Use multi-node one-hot output (vs single-node binary)')
 
     parser.add_argument('--test_on_val',
@@ -350,6 +310,7 @@ if __name__ == '__main__':
         epochs=flags.epochs,
         batch_size=flags.batch_size,
         learning_rate=flags.learning_rate,
+        conv_learning_rate=flags.conv_learning_rate,
         restricted=flags.restricted,
         data_set=flags.data_set,
         num_classes=flags.num_classes,

@@ -12,6 +12,7 @@ from src.model.geometry import (
 )
 from src.qubo.sampler import LocalSASampler, DWaveAdapter
 import pickle
+import torch.nn as nn
 
 
 
@@ -33,6 +34,30 @@ def zero_structure_like(obj):
 
 def sigmoid(x):
     return np.exp(x)/(1+np.exp(x))
+
+def orthogonal_init(shape, gain=1.0, seed=None):
+    if seed is not None:
+        np.random.seed(seed)
+
+    if len(shape) < 2:
+        raise ValueError("Orthogonal init requires at least 2 dimensions")
+
+    rows = shape[0]
+    cols = int(np.prod(shape[1:]))
+
+    # Step 1: random normal matrix
+    a = np.random.randn(rows, cols)
+
+    # Step 2: QR decomposition
+    q, r = np.linalg.qr(a)
+
+    # Step 3: make Q uniform (fix sign ambiguity)
+    d = np.diag(r)
+    q *= np.sign(d)
+
+    # Step 4: reshape and scale
+    q = q.reshape(shape)
+    return gain * q
 
 
 
@@ -91,8 +116,6 @@ class Conv_Deep_QBM(MODEL):
             betas_conv_units = np.full_like(betas_conv_units, sigmoid(biases) )
             self.center_conv.append(betas_conv_units)
         self.center_conv = np.array(self.center_conv)
-
-
 
         self.center_seq = zero_structure_like(self.biases_sequential_units)
         for l in range(len(self.center_seq)):
@@ -188,9 +211,9 @@ class Conv_Deep_QBM(MODEL):
 
     def init_weights_hidden_to_output(self, last_hidden_layer_dim: int, num_output_units: int):
         if len(self.sequential_layer_sizes) == 0:
-            weights = np.random.normal(0.0, 0.01, (self.num_filter_kernels, last_hidden_layer_dim, num_output_units))
+            weights = orthogonal_init((self.num_filter_kernels, last_hidden_layer_dim, num_output_units), seed=self.seed)
         else:
-            weights = np.random.normal(0.0, 0.01, (1, last_hidden_layer_dim, num_output_units))
+            weights = np.array([orthogonal_init((last_hidden_layer_dim, num_output_units), seed=self.seed)])
         return weights
 
 
@@ -214,7 +237,7 @@ class Conv_Deep_QBM(MODEL):
 
         # output -> output
         weights_output_output = np.triu(
-            np.random.normal(0.0, 0.01, (self.num_label_nodes, self.num_label_nodes)), k=1
+            orthogonal_init((self.num_label_nodes, self.num_label_nodes), seed=self.seed), k=1
         )
 
         return (
@@ -234,24 +257,26 @@ class Conv_Deep_QBM(MODEL):
 
         # fan_in = self.kernel_size * self.kernel_size
         # std = np.sqrt(2.0 / fan_in)  # He init
-        kernel_weights = np.random.normal(0.0, 0.01 ,(self.num_filter_kernels, self.kernel_size, self.kernel_size))
+        #kernel_weights = np.random.uniform(-1,1,(self.num_filter_kernels, self.kernel_size, self.kernel_size))
+        kernel_weights = np.array([orthogonal_init((self.kernel_size, self.kernel_size), seed=self.seed + i) for i in
+                                   range(self.num_filter_kernels)])
 
         if len(self.sequential_layer_sizes) > 0:
-            weights_pool_to_first_seq = np.random.normal(0.0, 0.01,  (self.num_filter_kernels, self.num_active_units_per_layer[1], self.sequential_layer_sizes[0]))
+            weights_pool_to_first_seq = np.array([orthogonal_init((self.num_active_units_per_layer[1], self.sequential_layer_sizes[0]), seed=self.seed)for _ in range(self.num_filter_kernels)])
             weights_sequential_layer.append(weights_pool_to_first_seq)
 
         # hidden -> hidden (interlayer)
         weights_sequential_current = []
         for i, num_units in enumerate(self.sequential_layer_sizes[1:]):
             weights_sequential_current.append(
-                np.random.normal(0.0, 0.01, (self.num_active_units_per_layer[2 + i], num_units)))
+                orthogonal_init((self.num_active_units_per_layer[2 + i], num_units), seed=self.seed))
         weights_sequential_layer.append(weights_sequential_current)
 
         # hidden -> hidden (intralayer)
         if not self.is_restricted:
             weights_intralayer_sequential_current = []
             for size in self.sequential_layer_sizes:
-                weights = np.triu(np.random.normal(0.0, 0.01, size))
+                weights = np.triu(np.zeros((size)))#orthogonal_init((1,size), seed=self.seed), k=1)
                 weights_intralayer_sequential_current.append(weights)
             weights_intralayer_sequential.append(weights_intralayer_sequential_current)
 
@@ -322,7 +347,7 @@ class Conv_Deep_QBM(MODEL):
         biases_sequential_units = []
 
         if self.hidden_bias_type == "shared":
-            biases_conv_units = np.zeros((self.num_filter_kernels, 1))
+            biases_conv_units = np.random.logistic(0.0, 0.5, (self.num_filter_kernels, 1))
         # for recurrent_layer in range(self.num_filter_kernels):
         #     # if self.hidden_bias_type == "shared":
         #     #     biases_conv_units.append(n[0.0])#np.random.normal(0.0, 0.01, 1))
@@ -336,17 +361,18 @@ class Conv_Deep_QBM(MODEL):
             for recurrent_layer in range(self.num_filter_kernels):
                 sequential_biases_current_recurrent = []
                 for size in self.sequential_layer_sizes:
-                    sequential_biases_current_recurrent.append(np.zeros( size))
+                    sequential_biases_current_recurrent.append(np.random.logistic(0.0, 0.5,  size))
                 biases_sequential_units.append(sequential_biases_current_recurrent)
         else:
             sequential_biases_current_recurrent = []
             for size in self.sequential_layer_sizes:
-                sequential_biases_current_recurrent.append(np.zeros( size))
+                sequential_biases_current_recurrent.append(np.zeros(size))
             biases_sequential_units.append(sequential_biases_current_recurrent)
 
-        biases_output = np.random.normal(0.0, 0.01, self.num_label_nodes)
+        biases_output = np.random.logistic(0.0, 0.5, (self.num_label_nodes))
         #biases_output = np.array([math.log(0.6/0.4), math.log(0.4/0.6)] )
         print("bias:", biases_output)# initialize output biases to 0
+
 
         return biases_conv_units, biases_sequential_units, biases_output
 

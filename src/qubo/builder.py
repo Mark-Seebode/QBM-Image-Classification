@@ -191,9 +191,10 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float, do_co
 
     # label bias
     for idx, last_sl in enumerate(model.slices.last_hidden):
-        k = label_vec.reshape(-1, 1)
         eff = (model.weights_hidden_to_output[idx] @ label_vec.reshape(-1, 1)).reshape(-1)
         Q[last_sl, last_sl] += np.diag(eff)
+
+    # conncet label
 
     if do_conv_label_bias:
         for idx, conv_sl in enumerate(model.slices.conv):

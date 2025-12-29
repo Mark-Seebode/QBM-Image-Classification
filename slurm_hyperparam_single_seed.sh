@@ -14,12 +14,12 @@ source venv/bin/activate && echo "venv loaded"
 
 # Capture hyperparameters from command-line arguments
 LEARNING_RATE=$1
-BATCH_SIZE=$2
-SAMPLE_COUNT=$3
-SEED=$4
-KERNEL_SIZE=$5
-NUM_KERNELS=$6
-RESTRICTED=${7}
+CONV_LEARNING_RATE=$2
+BATCH_SIZE=$3
+SAMPLE_COUNT=$4
+SEED=$5
+KERNEL_SIZE=$6
+NUM_KERNELS=$7
 ANNEALING_STEPS=${8}
 # Collect remaining args (0–3 values) as list
 shift 8
@@ -33,9 +33,9 @@ srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
     --seed $SEED \
     --kernel_size $KERNEL_SIZE \
     --num_kernels $NUM_KERNELS \
-    --restricted $RESTRICTED \
     --anneal $ANNEALING_STEPS \
     --learning_rate $LEARNING_RATE \
+    --conv_learning_rate $CONV_LEARNING_RATE \
     --batch_size $BATCH_SIZE \
     --sample_count $SAMPLE_COUNT \
     --save "out/slurm/" \

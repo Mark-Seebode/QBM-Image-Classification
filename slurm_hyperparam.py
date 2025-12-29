@@ -21,7 +21,7 @@ from src.model import cdqbm_state
 
 
 
-def run_slurm_with_hyperparams(learning_rate, conv_learning_rate, batch_size, sample_count,  seed, kernel_size, num_kernels, sequential_layer_sizes, anneal): #restricted, anneal):
+def run_slurm_with_hyperparams(learning_rate, conv_learning_rate, batch_size, sample_count,  seed, kernel_size, num_kernels, sequential_layer_sizes): #restricted, anneal):
     """Submits a SLURM job with hyperparameters and waits for it to complete."""
 
     shell_script = "slurm_hyperparam_single_seed.sh"
@@ -35,7 +35,6 @@ def run_slurm_with_hyperparams(learning_rate, conv_learning_rate, batch_size, sa
         str(kernel_size),
         str(num_kernels),
         #str(restricted),
-        str(anneal),
         *map(str, sequential_layer_sizes),
     ]
 
@@ -93,8 +92,8 @@ def configure_hyperparams(run):
 
         config_defaults = {'batch_size': args.batch_size,  'learning_rate': args.learning_rate, 'conv_learning_rate': args.conv_learning_rate,
                            'sample_count': args.sample_count, 'kernel_size': args.kernel_size, 'num_kernels': args.num_kernels,
-                           'sequential_layer_sizes': args.sequential_layer_sizes, #'is_recurrent_weights': args.is_recurrent_weights,'restricted': args.restricted,
-                        'anneal': args.anneal}
+                           'sequential_layer_sizes': args.sequential_layer_sizes,} #'is_recurrent_weights': args.is_recurrent_weights,'restricted': args.restricted,
+                        #'anneal': args.anneal}
 
         run.config.setdefaults(config_defaults)
 
@@ -106,7 +105,7 @@ def configure_hyperparams(run):
         SEQUENTIAL_LAYER_SIZES = wandb.config.sequential_layer_sizes
         #IS_RECURRENT_WEIGHTS = wandb.config.is_recurrent_weights
         #RESTRICTED = wandb.config.restricted
-        ANNEAL = wandb.config.anneal
+        #ANNEAL = wandb.config.anneal
         SAMPLE_COUNT = wandb.config.sample_count
 
     else:
@@ -119,7 +118,7 @@ def configure_hyperparams(run):
         SEQUENTIAL_LAYER_SIZES = args.sequential_layer_sizes
         #IS_RECURRENT_WEIGHTS = args.is_recurrent_weights
         #RESTRICTED = args.restricted
-        ANNEAL = args.anneal
+        #ANNEAL = args.anneal
         SAMPLE_COUNT = args.sample_count
 
 
@@ -180,7 +179,7 @@ def main(args, resume=False, resume_id=""):
 
         print("Submitting SLURM jobs for all seeds")
         for seed in seeds:
-            job_id = run_slurm_with_hyperparams(LEARNING_RATE, CONV_LEARNING_RATE, BATCH_SIZE, SAMPLE_COUNT, seed, KERNEL_SIZE, NUM_KERNELS, SEQUENTIAL_LAYER_SIZES, ANNEAL)#RESTRICTED, ANNEAL)
+            job_id = run_slurm_with_hyperparams(LEARNING_RATE, CONV_LEARNING_RATE, BATCH_SIZE, SAMPLE_COUNT, seed, KERNEL_SIZE, NUM_KERNELS, SEQUENTIAL_LAYER_SIZES)#, ANNEAL)#RESTRICTED, ANNEAL)
             job_list.append(job_id)
         print(job_list)
         time.sleep(10)
@@ -352,7 +351,7 @@ if __name__ == '__main__':
                         default=1000,
                         type=int)
 
-    parser.add_argument('--sweep_id', type=str, default="ccdy9yut") #v8vwy5dq breast mnistk3i5g39d current rbm penumonia estex4pi   current sq qbm xzvm3exu
+    parser.add_argument('--sweep_id', type=str, default="wkzd43j3") #v8vwy5dq breast mnistk3i5g39d current rbm penumonia estex4pi   current sq qbm xzvm3exu
     parser.add_argument('--key', type=str, default=None)
 
     args = parser.parse_args()

@@ -20,9 +20,9 @@ SAMPLE_COUNT=$4
 SEED=$5
 KERNEL_SIZE=$6
 NUM_KERNELS=$7
-ANNEALING_STEPS=${8}
+#ANNEALING_STEPS=${8}
 # Collect remaining args (0–3 values) as list
-shift 8
+shift 7
 SEQ_SIZES=("$@")    # now SEQ_SIZES is an array of the remaining args
 
 
@@ -33,7 +33,6 @@ srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
     --seed $SEED \
     --kernel_size $KERNEL_SIZE \
     --num_kernels $NUM_KERNELS \
-    --anneal $ANNEALING_STEPS \
     --learning_rate $LEARNING_RATE \
     --conv_learning_rate $CONV_LEARNING_RATE \
     --batch_size $BATCH_SIZE \

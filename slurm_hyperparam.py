@@ -351,7 +351,7 @@ if __name__ == '__main__':
                         default=1000,
                         type=int)
 
-    parser.add_argument('--sweep_id', type=str, default="dsp5orcs") #v8vwy5dq breast mnistk3i5g39d current rbm penumonia estex4pi   current sq qbm xzvm3exu
+    parser.add_argument('--sweep_id', type=str, default="zipv3m97") #v8vwy5dq breast mnistk3i5g39d current rbm penumonia estex4pi   current sq qbm xzvm3exu
     parser.add_argument('--key', type=str, default=None)
 
     args = parser.parse_args()
@@ -359,7 +359,7 @@ if __name__ == '__main__':
     print("Starting Hyperparameter Optimization for")
 
     HYPERPARAM_OPT = args.hyperparam_opt
-    NUM_SWEEPS = 50#args.n_sweeps
+    NUM_SWEEPS = 100#args.n_sweeps
 
     if HYPERPARAM_OPT:
         if args.key:

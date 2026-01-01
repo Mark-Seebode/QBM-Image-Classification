@@ -82,8 +82,8 @@ def main(seed=19, solver="SA", sample_count=100,
 
     elif data_set == "NEU-CLS-64":
         train_x, train_y, val_x, val_y, test_x, test_y = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
-                                                                      classes=["gg", "rp", "sp", "sc"], seed=seed,
-                                                                        image_size=(28, 28), num_samples_per_class=100)
+                                                                      classes=["gg", "rp"], seed=seed,
+                                                                        image_size=(28, 28))
         if test_on_val:
             test_x, test_y = val_x, val_y
     else:
@@ -235,7 +235,7 @@ if __name__ == '__main__':
                         help="Dataset: 'mnist', 'breastmnist', 'pneumoniamnist', 'fashionmnist', 'cifar-10', 'miniimagenet', 'NEU-CLS-64'")
 
     parser.add_argument('--num_classes',
-                        default=4,
+                        default=2,
                         type=int,
                         help='Number of classes in dataset')
 

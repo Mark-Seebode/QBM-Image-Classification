@@ -79,13 +79,17 @@ class Conv_Deep_QBM(MODEL):
         self.is_recurrent_weights = is_recurrent_weights
         self.centerize = centerize
 
-        (num_hidden_nodes,
-         self.num_active_units,
-         self.num_hidden_units_per_layer,
-         self.num_active_units_per_layer,
-         self.input_groups,
-         self.conv_layer_dim,
-         self.num_conv_units) = self.build_model_structure()
+        if kernel_size > 0:
+            (num_hidden_nodes,
+             self.num_active_units,
+             self.num_hidden_units_per_layer,
+             self.num_active_units_per_layer,
+             self.input_groups,
+             self.conv_layer_dim,
+             self.num_conv_units) = self.build_model_structure_conv()
+        else:
+            self.num_hidden_units_per_layer, num_hidden_nodes = self.build_model_structure_fully_connected()
+
 
         self.num_filter_kernels = num_filter_kernels
 
@@ -102,8 +106,10 @@ class Conv_Deep_QBM(MODEL):
                             self.biases_conv_units,
                             self.biases_sequential_units,
                             self.biases_output] = self.init_params(is_recurrent_weights)
-
-        self.conv_label_bias = np.random.normal(0.0, 0.01, (self.num_filter_kernels, self.num_active_units_per_layer[1], self.num_label_nodes))
+        if kernel_size > 0:
+            self.conv_label_bias = np.random.normal(0.0, 0.01, (self.num_filter_kernels, self.num_active_units_per_layer[1], self.num_label_nodes))
+        else:
+            self.conv_label_bias = []
 
         self.sequential_label_bias = []
         for size in sequential_layer_sizes[:-1]:
@@ -173,10 +179,22 @@ class Conv_Deep_QBM(MODEL):
                                self.biases_output]
 
 
-    def build_model_structure(self):
+    def build_model_structure_fully_connected(self):
+
+        hidden_units_per_layer = []
+        num_hidden_nodes = 0
+        # sequential layers
+        for s in self.sequential_layer_sizes:
+            hidden_units_per_layer.append(s)
+            num_hidden_nodes += s
+
+        return hidden_units_per_layer, num_hidden_nodes
+
+
+    def build_model_structure_conv(self):
         num_hidden_nodes = 0
 
-        # conv geometry
+        # conv_sl geometry
         conv_dim = conv_output_shape(self.image_shape, self.kernel_size, self.stride)
         input_groups = get_input_groups_coords(self.image_shape, self.kernel_size, self.stride)
         num_conv_units = num_conv_units_from_dim(conv_dim)
@@ -217,7 +235,7 @@ class Conv_Deep_QBM(MODEL):
         return weights
 
 
-    def init_weights(self, is_recurrent_weights: bool):
+    def init_weights_conv(self, is_recurrent_weights: bool):
         random.seed(self.seed)
         np.random.seed(self.seed)
 
@@ -249,6 +267,46 @@ class Conv_Deep_QBM(MODEL):
             weights_seq_recurrent
         )
 
+    def init_weights_fully_connected(self):
+        weights_sequential_layer = []
+        weights_intralayer_sequential = []
+
+        weights_input = orthogonal_init((self.num_visible, self.num_hidden_units_per_layer[0]), seed=self.seed)
+
+            # hidden -> hidden (interlayer)
+        weights_sequential_current = []
+        for i, num_units in enumerate(self.sequential_layer_sizes[:-1]):
+            weights_sequential_current.append(
+                orthogonal_init((num_units, self.num_hidden_units_per_layer[1 + i]), seed=self.seed))
+        weights_sequential_layer.append(weights_sequential_current)
+
+        # hidden -> hidden (intralayer)
+        if not self.is_restricted:
+            weights_intralayer_sequential_current = []
+            for size in self.sequential_layer_sizes:
+                weights = np.triu(np.random.normal(0.0, 0.01, size))#np.zeros((size)))  # orthogonal_init((1,size), seed=self.seed), k=1)
+                weights_intralayer_sequential_current.append(weights)
+            weights_intralayer_sequential.append(weights_intralayer_sequential_current)
+
+        # Last hidden -> output
+        weights_hidden_to_output = self.init_weights_hidden_to_output(self.num_hidden_units_per_layer[-1],
+                                                                      self.num_label_nodes)
+
+        # output -> output
+        weights_output_output = np.triu(
+            orthogonal_init((self.num_label_nodes, self.num_label_nodes), seed=self.seed), k=1
+        )
+
+        return (
+            weights_input,
+            weights_sequential_layer,
+            weights_intralayer_sequential,
+            weights_hidden_to_output,
+            weights_output_output
+        )
+
+
+
     def init_single_sequential_weights(self):
         kernel_weights = []
         weights_sequential_layer = []
@@ -276,7 +334,7 @@ class Conv_Deep_QBM(MODEL):
         if not self.is_restricted:
             weights_intralayer_sequential_current = []
             for size in self.sequential_layer_sizes:
-                weights = np.triu(np.zeros((size)))#orthogonal_init((1,size), seed=self.seed), k=1)
+                weights = np.triu(np.random.normal(0.0, 0.5, (size)))#np.zeros((size)))#orthogonal_init((1,size), seed=self.seed), k=1)
                 weights_intralayer_sequential_current.append(weights)
             weights_intralayer_sequential.append(weights_intralayer_sequential_current)
 
@@ -346,28 +404,35 @@ class Conv_Deep_QBM(MODEL):
         biases_conv_units = []
         biases_sequential_units = []
 
-        if self.hidden_bias_type == "shared":
-            biases_conv_units = np.random.logistic(0.0, 0.5, (self.num_filter_kernels, 1))
-        # for recurrent_layer in range(self.num_filter_kernels):
-        #     # if self.hidden_bias_type == "shared":
-        #     #     biases_conv_units.append(n[0.0])#np.random.normal(0.0, 0.01, 1))
-        #     if self.hidden_bias_type == "none":
-        #         biases_conv_units.append(np.zeros(self.sequential_layer_sizes))  # TODO: not working
+        if self.kernel_size > 0:
+            if self.hidden_bias_type == "shared":
+                biases_conv_units = np.random.logistic(0.0, 0.5, (self.num_filter_kernels, 1))
+            # for recurrent_layer in range(self.num_filter_kernels):
+            #     # if self.hidden_bias_type == "shared":
+            #     #     biases_conv_units.append(n[0.0])#np.random.normal(0.0, 0.01, 1))
+            #     if self.hidden_bias_type == "none":
+            #         biases_conv_units.append(np.zeros(self.sequential_layer_sizes))  # TODO: not working
 
-        else:  # self.hidden_bias_type == "individual"
-            biases_conv_units.append(np.random.normal(0.0, 1.0, self.num_conv_units))
-
-        if is_recurrent_weights:
-            for recurrent_layer in range(self.num_filter_kernels):
+            else:  # self.hidden_bias_type == "individual"
+                biases_conv_units.append(np.random.normal(0.0, 1.0, self.num_conv_units))
+            if is_recurrent_weights:
+                for recurrent_layer in range(self.num_filter_kernels):
+                    sequential_biases_current_recurrent = []
+                    for size in self.sequential_layer_sizes:
+                        sequential_biases_current_recurrent.append(np.random.logistic(0.0, 0.5,  size))
+                    biases_sequential_units.append(sequential_biases_current_recurrent)
+            else:
                 sequential_biases_current_recurrent = []
                 for size in self.sequential_layer_sizes:
-                    sequential_biases_current_recurrent.append(np.random.logistic(0.0, 0.5,  size))
+                    sequential_biases_current_recurrent.append(np.random.logistic(0.0, 0.5,  size))#np.full_like(np.zeros(size), 0.0))
                 biases_sequential_units.append(sequential_biases_current_recurrent)
+
         else:
             sequential_biases_current_recurrent = []
             for size in self.sequential_layer_sizes:
-                sequential_biases_current_recurrent.append(np.zeros(size))
+                sequential_biases_current_recurrent.append(np.random.logistic(0.0, 0.5, (size)))
             biases_sequential_units.append(sequential_biases_current_recurrent)
+
 
         biases_output = np.random.logistic(0.0, 0.5, (self.num_label_nodes))
         #biases_output = np.array([math.log(0.6/0.4), math.log(0.4/0.6)] )
@@ -378,14 +443,26 @@ class Conv_Deep_QBM(MODEL):
 
 
     def init_params(self, is_recurrent_weights=False):
-        (
-        kernel_weights,
-        weights_sequential_layer,
-        weights_hidden_to_output,
-        weights_output_output,
-        weights_interlayer_sequential,
-        weights_seq_recurrent
-        ) = self.init_weights(is_recurrent_weights)
+
+        if self.kernel_size > 0:
+            (
+            kernel_weights,
+            weights_sequential_layer,
+            weights_hidden_to_output,
+            weights_output_output,
+            weights_interlayer_sequential,
+            weights_seq_recurrent
+            ) = self.init_weights_conv(is_recurrent_weights)
+        else:
+            (
+                kernel_weights,
+                weights_sequential_layer,
+                weights_interlayer_sequential,
+                weights_hidden_to_output,
+                weights_output_output,
+            ) = self.init_weights_fully_connected()
+            weights_seq_recurrent = None
+
 
         (
         biases_conv_units,
@@ -406,22 +483,26 @@ class Conv_Deep_QBM(MODEL):
         )
 
     def build_layer_indexing(self, example_image, is_recurrent_weights=False) ->  StackSpec:
-        currentlayer_fmap_2d = conv2d_valid_stride(example_image, self.kernel_weights[0], self.stride)
-        currentlayer_fmap_flat = currentlayer_fmap_2d.ravel()
-
-        mock_pooled_idx = pooled_indices_for_input(
-            fmap_flat=currentlayer_fmap_flat,
-            num_conv_units=self.num_conv_units,
-            pooling_type=self.pooling_type,
-            pool_windows=getattr(self, "pool_windows", []),
-        )
-
-        conv_active = []
         seq = []
-        num_pooled_units_per_recurrent_layer = []
-        for _ in range(self.num_filter_kernels):
-            conv_active.append(len(mock_pooled_idx) if self.pooling_type == "deterministic" else self.num_conv_units)
-            num_pooled_units_per_recurrent_layer.append(len(mock_pooled_idx))
+        if self.kernel_size > 0:
+            currentlayer_fmap_2d = conv2d_valid_stride(example_image, self.kernel_weights[0], self.stride)
+            currentlayer_fmap_flat = currentlayer_fmap_2d.ravel()
+
+            mock_pooled_idx = pooled_indices_for_input(
+                fmap_flat=currentlayer_fmap_flat,
+                num_conv_units=self.num_conv_units,
+                pooling_type=self.pooling_type,
+                pool_windows=getattr(self, "pool_windows", []),
+            )
+
+            conv_active = []
+            num_pooled_units_per_recurrent_layer = []
+            for _ in range(self.num_filter_kernels):
+                conv_active.append(len(mock_pooled_idx) if self.pooling_type == "deterministic" else self.num_conv_units)
+                num_pooled_units_per_recurrent_layer.append(len(mock_pooled_idx))
+        else:
+            conv_active = []
+            num_pooled_units_per_recurrent_layer = []
         if is_recurrent_weights:
             for _ in range(self.num_filter_kernels):
                 seq.append(SeqSpec(self.sequential_layer_sizes))
@@ -435,7 +516,7 @@ class Conv_Deep_QBM(MODEL):
             pooling_type=self.pooling_type,
             n_pooled_units=num_pooled_units_per_recurrent_layer,
             num_recurrent_layers=self.num_filter_kernels if is_recurrent_weights else 1,
-            num_filter_kernels=self.num_filter_kernels
+            num_filter_kernels=self.num_filter_kernels,
         )
 
 

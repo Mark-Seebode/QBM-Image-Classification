@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 import seaborn as sns
 import torch
-import src.model.discriminative_qbm as DQBM
+import src.model.faster_dqbm as DQBM
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, precision_score, recall_score
 
 
@@ -207,7 +207,7 @@ def save_result(file_path: str, qbm: DQBM, history: History, trained_params, y_t
 
     acc, f1, precision, recall, auc = get_metrics(y_true, y_predict, class_titles)
     result_txt = get_result_as_txt(acc, f1, precision, recall, auc, class_titles, qbm.dim_input, qbm.n_output_nodes,
-                                   qbm.num_conv_units, batch_size, epochs, optimizer, learning_rate,
+                                   qbm.dim_input, batch_size, epochs, optimizer, learning_rate,
                                    qpu_time_used=qpu_time_used,
                                    beta_eff=qbm.beta_eff)
 
@@ -220,8 +220,7 @@ def save_result(file_path: str, qbm: DQBM, history: History, trained_params, y_t
     with open(file_path + "acc_auc.pkl", "wb") as f:
         pickle.dump((acc, auc), f)
 
-    if save:
-        plots = get_plots(history, y_true, y_predict, class_titles, show_plot)
+    plots = get_plots(history, y_true, y_predict, class_titles, show_plot)
 
     if save:
         plots.loss_per_batch_fig.savefig(file_path + "_loss_per_iteration.png")

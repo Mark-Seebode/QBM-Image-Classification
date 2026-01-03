@@ -58,7 +58,7 @@ def build_pool_windows(
     pool_size: int,
 ) -> List[np.ndarray]:
     """
-    Create non-overlapping p×p windows over the flattened conv fmap.
+    Create non-overlapping p×p windows over the flattened conv_sl fmap.
     Each window is returned as a 1D array of indices into the flattened fmap.
     If pool_size in (0, 1), returns an empty list.
     """

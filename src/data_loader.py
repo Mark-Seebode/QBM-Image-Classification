@@ -120,6 +120,8 @@ def get_mnist(file_image: str, file_labels: str, classes: list[int] = None, size
 
     print("Images: ", len(images))
 
+    labels = np.array(labels)
+
     return images, labels
 
 
@@ -217,7 +219,7 @@ def get_medmnist(file: str, index: int = 0, duplicate_positives_n_times: int = 0
     return (train_images, train_labels), (val_images, val_labels), (test_images, test_labels)
 
 
-def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=None, train_test_val_split: list[float]= None, seed: int = 42, image_size: tuple[int,int]=(64, 64)):
+def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=None, train_test_val_split: list[float]= None, seed: int = 42, image_size: tuple[int,int]=(64, 64), contrast_factor=None):
     """
     Load NEU-CLS-64 dataset from class folders containing jpg images
 
@@ -237,8 +239,14 @@ def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=N
                 if f.lower().endswith(('.jpg','.jpeg','.png'))]
         for p in imgs:
             with Image.open(p) as im:
-                im = im.convert('L')  # <- 1 channel
+                im = im.convert('L')
                 im = im.resize(image_size, Image.Resampling.LANCZOS)
+
+                if contrast_factor is not None:
+                    from PIL import ImageEnhance
+                    enhancer = ImageEnhance.Contrast(im)
+                    im = enhancer.enhance(contrast_factor)
+
                 arr = np.asarray(im) / 255.0
                 x.append(arr)
                 y.append(label)
@@ -260,20 +268,20 @@ def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=N
         x = np.concatenate(selected_x)
         y = np.concatenate(selected_y)
 
-    # #show sample image after resizing and original image 10 per class
-    # import matplotlib.pyplot as plt
-    # for i in range(10):
-    #     plt.subplot(1, 2, 1)
-    #     plt.imshow(x[i], cmap='gray')
-    #     plt.title('Resized Image')
-    #     plt.axis('off')
-    #     original_image_path = os.path.join(file, classes[y[0]], os.listdir(os.path.join(file, classes[y[0]]))[i])
-    #     with Image.open(original_image_path) as im:
-    #         plt.subplot(1, 2, 2)
-    #         plt.imshow(im, cmap='gray')
-    #         plt.title('Original Image')
-    #         plt.axis('off')
-    #     plt.show()
+    #show sample image after resizing and original image 10 per class
+    import matplotlib.pyplot as plt
+    for i in range(1):
+        plt.subplot(1, 2, 1)
+        plt.imshow(x[50], cmap='gray')
+        plt.title('Resized Image')
+        plt.axis('off')
+        original_image_path = os.path.join(file, classes[y[1]], os.listdir(os.path.join(file, classes[y[1]]))[i])
+        with Image.open(original_image_path) as im:
+            plt.subplot(1, 2, 2)
+            plt.imshow(im, cmap='gray')
+            plt.title('Original Image')
+            plt.axis('off')
+        plt.show()
 
     # split into train, test, val
     X_temp, X_test, y_temp, y_test = train_test_split(x, y, test_size=train_test_val_split[2], random_state=seed, shuffle=True)

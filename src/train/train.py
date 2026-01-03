@@ -44,7 +44,8 @@ def train_one_iteration(
         errors_weights_output_output
     ) = initialize_zero_errors_weights(model)
 
-    errors_conv_label_bias = np.zeros_like(model.conv_label_bias)
+    if model.kernel_size > 0:
+        errors_conv_label_bias = np.zeros_like(model.conv_label_bias)
     errors_seq_label_bias = zero_structure_like(model.sequential_label_bias)
 
     n = len(X)
@@ -81,8 +82,8 @@ def train_one_iteration(
 
         # turn 0s in samples to -1s for error calculation
 
-        out_c.samples = np.where(out_c.samples == 0, -1, out_c.samples)
-        out_u.samples = np.where(out_u.samples == 0, -1, out_u.samples)
+        #out_c.samples = np.where(out_c.samples == 0, -1, out_c.samples)
+        #out_u.samples = np.where(out_u.samples == 0, -1, out_u.samples)
 
         if not one_hot:
             loss = nll_from_probs_binary(out_u.probs, int(y))
@@ -171,7 +172,7 @@ def train_one_iteration(
         else:
             errors_weights_hidden_to_output[0] += (avgs_weights_hidden_to_output_c[0] - avgs_weights_hidden_to_output_u[0])
 
-        if convLabel_bias:
+        if convLabel_bias and model.kernel_size > 0:
             errors_conv_label_bias += (avgs_conv_label_bias_c - avgs_conv_label_bias_u)
             for i in range(len(errors_seq_label_bias)):
                 errors_seq_label_bias[i] += (avgs_seq_label_bias_c[i] - avgs_seq_label_bias_u[i])
@@ -179,9 +180,10 @@ def train_one_iteration(
         errors_biases_out += (avgs_biases_output_c - avgs_biases_output_u)
         errors_weights_output_output += (avgs_weights_output_output_c - avgs_weights_output_output_u)
 
-    for recurrent_layer in range(model.num_filter_kernels):
-        errors_biases_conv[recurrent_layer] /= X.shape[0]
-        errors_weights_kernels[recurrent_layer] /= X.shape[0]
+    if model.kernel_size > 0:
+        for recurrent_layer in range(model.num_filter_kernels):
+            errors_biases_conv[recurrent_layer] /= X.shape[0]
+            errors_weights_kernels[recurrent_layer] /= X.shape[0]
 
     if len(model.slices.seq_layers) > 0:
         for i in range(len(errors_biases_seq)):
@@ -201,47 +203,62 @@ def train_one_iteration(
 
     errors_weights_hidden_to_output /= X.shape[0]
 
-    model.biases_conv_units -= conv_learning_rate * errors_biases_conv
+    #model.biases_conv_units -= conv_learning_rate * errors_biases_conv
+    model.kernel_weights = apply_natural_gradient(model.kernel_weights, errors_weights_kernels, conv_learning_rate)
+    model.biases_conv_units = apply_natural_gradient(model.biases_conv_units, errors_biases_conv, conv_learning_rate)
+
     if len(model.slices.seq_layers) > 0:
         for i, _ in enumerate(zip(model.biases_sequential_units,
                                           errors_biases_seq)):
             model.biases_sequential_units[i] = [
-                b - lr * e
+                apply_natural_gradient(b, e, lr)#b - lr * e
                 for b, e in zip(model.biases_sequential_units[i],
                                         errors_biases_seq[i])
             ]
 
-    model.kernel_weights -= conv_learning_rate * (errors_weights_kernels)
+    #model.kernel_weights -= conv_learning_rate * (errors_weights_kernels)
 
     if len(model.slices.seq_layers) > 0:
         # self.weights_hidden_interlayer -= learning_rate * errors_weights_hidden_interlayer
         if not model.is_restricted:
             for i, _ in enumerate(zip(model.weights_intralayer_sequential,
                                         errors_weights_interlayer_sequential)):
-                model.weights_intralayer_sequential[i] = [weights - lr * errors_weights
+                model.weights_intralayer_sequential[i] = [apply_natural_gradient(weights, errors_weights, lr)#weights - lr * errors_weights
                                                         for weights, errors_weights in zip(model.weights_intralayer_sequential[i],
                                                                                               errors_weights_interlayer_sequential[i])]
 
+
     for i, _ in enumerate(zip(model.weights_sequential_layer,
                                     errors_weights_sequential)):
-        model.weights_sequential_layer[i] = [weights - lr * errors_weights
+        model.weights_sequential_layer[i] = [apply_natural_gradient(weights, errors_weights, lr)#weights - lr * errors_weights
                                                 for weights, errors_weights in
                                                 zip(model.weights_sequential_layer[i], errors_weights_sequential[i])]
     if model.is_recurrent_weights:
         for recurrent_layer in range(model.num_filter_kernels):
-            model.weights_seq_recurrent[recurrent_layer] = [weights - lr * errors_weights
+            model.weights_seq_recurrent[recurrent_layer] = [apply_natural_gradient(weights, errors_weights, lr)#weights - lr * errors_weights
                                             for weights, errors_weights in
                                             zip(model.weights_seq_recurrent[recurrent_layer], error_weights_seq_recurrent[recurrent_layer])]
 
-    for i, _ in enumerate(zip(model.weights_hidden_to_output,errors_weights_hidden_to_output)):
-        model.weights_hidden_to_output[i] -= lr * errors_weights_hidden_to_output[i]
+    # for i, _ in enumerate(zip(model.weights_hidden_to_output,errors_weights_hidden_to_output)):
+    #     model.weights_hidden_to_output[i] -= lr * errors_weights_hidden_to_output[i]
+
+    # Sequential / hidden-to-output layers
+    for i in range(len(model.weights_hidden_to_output)):
+        model.weights_hidden_to_output[i] = apply_natural_gradient(
+            model.weights_hidden_to_output[i],
+            errors_weights_hidden_to_output[i],
+            lr
+        )
 
     errors_weights_output_output /= X.shape[0]
     errors_biases_out /= X.shape[0]
-    model.biases_output -= lr * errors_biases_out
-    model.weights_output_output -= lr * errors_weights_output_output
+    # Output layer
+    model.weights_output_output = apply_natural_gradient(model.weights_output_output, errors_weights_output_output, lr)
+    model.biases_output = apply_natural_gradient(model.biases_output, errors_biases_out, lr)
+    # model.biases_output -= lr * errors_biases_out
+    # model.weights_output_output -= lr * errors_weights_output_output
 
-    if convLabel_bias:
+    if convLabel_bias and model.kernel_size > 0:
         model.conv_label_bias -= lr * errors_conv_label_bias / X.shape[0]
 
         [model.sequential_label_bias[i] - lr * errors_seq_label_bias[i] / X.shape[0] for i in range(len(model.sequential_label_bias))]
@@ -297,53 +314,52 @@ def update_biases_with_centers(model:Conv_Deep_QBM, all_samples_c, uses_one_hot:
         label_batch = np.array(label_batch_one_hot)
     mean_out = np.mean(label_batch, axis=0)
 
-    v = 0.05
-    # update conv biases
-    # for fk in range(model.num_filter_kernels):
-    #     if len(model.sequential_layer_sizes) > 0:
-    #         first_seq_sl = model.slices.seq_layers[0][0]
-    #         W = model.weights_sequential_layer[0][fk]
-    #         avg_first_sq_sl = avg_samples_clamped[first_seq_sl]
-    #         model.biases_conv_units[fk] += np.sum(v * W @ (avg_first_sq_sl - model.center_seq[0][0]))
-    #     else:
-    #         for idx, last_sl in enumerate(model.slices.last_hidden):
-    #             W = model.weights_hidden_to_output[idx]
-    #             model.biases_conv_units[fk] += np.sum(v * W @ (mean_out - model.center_out))
+    v = 0.9
+    #update conv_sl biases
+    for fk in range(model.num_filter_kernels):
+        if len(model.sequential_layer_sizes) > 0:
+            first_seq_sl = model.slices.seq_layers[0][0]
+            W = model.weights_sequential_layer[0][fk]
+            avg_first_sq_sl = avg_samples_clamped[first_seq_sl]
+            model.biases_conv_units[fk] += np.sum(v * W @ (avg_first_sq_sl - model.center_seq[0][0]))
+        else:
+            for idx, last_sl in enumerate(model.slices.last_hidden):
+                W = model.weights_hidden_to_output[idx]
+                model.biases_conv_units[fk] += np.sum(v * W @ (mean_out - model.center_out))
 
     # update sequential biases
     for idx, seq_layer in enumerate(model.slices.seq_layers[0]):
-        # similiar like before but now preverious layer and following layer are needed for gradient calculation
-        # if idx == 0:
-        #     for fk in range(model.num_filter_kernels):
-        #         for c, conv_sl in enumerate(model.slices.conv):
-        #             W_prev = model.weights_sequential_layer[0][fk]
-        #             avg_conv_sl = avg_samples_clamped[conv_sl]
-        #             model.biases_sequential_units[0][idx] += v * W_prev.T @ (avg_conv_sl - model.center_conv[fk])
-        #     if len(model.slices.seq_layers[0]) > 1: # not only one layer
-        #         next_slice = model.slices.seq_layers[0][idx + 1]
-        #         W_next = model.weights_sequential_layer[1][idx]
-        #         avg_next_sl = avg_samples_clamped[next_slice]
-        #         model.biases_sequential_units[0][idx] += v * W_next @ (avg_next_sl - model.center_seq[0][idx + 1])
-        #     else:
-        #         for i, last_sl in enumerate(model.slices.last_hidden):
-        #             W_next = model.weights_hidden_to_output[i]
-        #             model.biases_sequential_units[0][idx] += v * W_next @ (mean_out - model.center_out)
-        # else:
-        # if idx >= len(model.slices.seq_layers[0]) - 1:
-        #     prev_slice = model.slices.seq_layers[0][idx - 1]
-        #     W_prev = model.weights_sequential_layer[1][idx - 1]
-        #     avg_prev_sl = avg_samples_clamped[prev_slice]
-        #     model.biases_sequential_units[0][idx] += v * W_prev.T @ (avg_prev_sl - model.center_seq[0][idx - 1])
-        #
-        #     # if idx < len(model.slices.seq_layers[0]) - 2: # not last layer
-        #     #     next_slice = model.slices.seq_layers[0][idx + 1]
-        #     #     W_next = model.weights_sequential_layer[1][idx + 1]
-        #     #     avg_next_sl = avg_samples_clamped[next_slice]
-        #     #     model.biases_sequential_units[0][idx] += v * W_next @ (avg_next_sl - model.center_seq[0][idx + 1])
-        #     # else:
-        #     for i, last_sl in enumerate(model.slices.last_hidden):
-        #         W_next = model.weights_hidden_to_output[i]
-        #         model.biases_sequential_units[0][idx] += v * W_next @ (mean_out - model.center_out)
+        if idx == 0:
+            for fk in range(model.num_filter_kernels):
+                for c, conv_sl in enumerate(model.slices.conv):
+                    W_prev = model.weights_sequential_layer[0][fk]
+                    avg_conv_sl = avg_samples_clamped[conv_sl]
+                    model.biases_sequential_units[0][idx] += v * W_prev.T @ (avg_conv_sl - model.center_conv[fk])
+            if len(model.slices.seq_layers[0]) > 1: # not only one layer
+                next_slice = model.slices.seq_layers[0][idx + 1]
+                W_next = model.weights_sequential_layer[1][idx]
+                avg_next_sl = avg_samples_clamped[next_slice]
+                model.biases_sequential_units[0][idx] += v * W_next @ (avg_next_sl - model.center_seq[0][idx + 1])
+            else:
+                for i, last_sl in enumerate(model.slices.last_hidden):
+                    W_next = model.weights_hidden_to_output[i]
+                    model.biases_sequential_units[0][idx] += v * W_next @ (mean_out - model.center_out)
+        else:
+            if idx >= len(model.slices.seq_layers[0]) - 1:
+                prev_slice = model.slices.seq_layers[0][idx - 1]
+                W_prev = model.weights_sequential_layer[1][idx - 1]
+                avg_prev_sl = avg_samples_clamped[prev_slice]
+                model.biases_sequential_units[0][idx] += v * W_prev.T @ (avg_prev_sl - model.center_seq[0][idx - 1])
+
+                # if idx < len(model.slices.seq_layers[0]) - 2: # not last layer
+                #     next_slice = model.slices.seq_layers[0][idx + 1]
+                #     W_next = model.weights_sequential_layer[1][idx + 1]
+                #     avg_next_sl = avg_samples_clamped[next_slice]
+                #     model.biases_sequential_units[0][idx] += v * W_next @ (avg_next_sl - model.center_seq[0][idx + 1])
+                # else:
+                for i, last_sl in enumerate(model.slices.last_hidden):
+                    W_next = model.weights_hidden_to_output[i]
+                    model.biases_sequential_units[0][idx] += v * W_next @ (mean_out - model.center_out)
         pass
 
 
@@ -388,7 +404,7 @@ def reorthogonalize_qr(W):
 
 def update_centers(model:Conv_Deep_QBM, all_samples_c, label_batch, uses_one_hot: bool):
     # average samples clamped
-    v = 0.05
+    v = 0.9
     #β = (1 − ν) · β + ν · yd
     avg_samples_clamped = np.mean(np.vstack(all_samples_c), axis=0)
 
@@ -453,17 +469,18 @@ def calculate_avg_biases(sample_matrix, model, is_unclamped: bool, label):
      avgs_biases_output) = initialize_zero_errors_biases(model)
     avg_biases = sample_matrix.mean(axis=0)
 
-    for fk in range(model.num_filter_kernels):
-        if model.hidden_bias_type == "shared":
-            conv_biases = avg_biases[model.slices.conv[fk]]
-            alpha_conv = model.center_conv[fk]
-            centered_bias = conv_biases #- alpha_conv
-            avgs_biases_conv_units[fk] += np.sum(centered_bias)
-        else: # case "individual"
-            conv_biases = avg_biases[model.slices.conv[fk]]
-            alpha_conv = model.center_conv[fk]  # same shape
-            centered_bias = conv_biases #- alpha_conv
-            avgs_biases_conv_units[fk] += centered_bias
+    if model.kernel_size > 0:
+        for fk in range(model.num_filter_kernels):
+            if model.hidden_bias_type == "shared":
+                conv_biases = avg_biases[model.slices.conv[fk]]
+                alpha_conv = model.center_conv[fk]
+                centered_bias = conv_biases #- alpha_conv
+                avgs_biases_conv_units[fk] += np.sum(centered_bias)
+            else: # case "individual"
+                conv_biases = avg_biases[model.slices.conv[fk]]
+                alpha_conv = model.center_conv[fk]  # same shape
+                centered_bias = conv_biases #- alpha_conv
+                avgs_biases_conv_units[fk] += centered_bias
 
     if len(model.slices.seq_layers) > 0:
         # sequential biases
@@ -505,10 +522,6 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
 
     #sample_matrix = np.vstack([samples.samples])
     sample_matrix = samples.samples
-
-    if model.pooling_type == "probabilistic":
-        #remove the conv units from the sampel matrix
-        sample_matrix = sample_matrix[:, model.num_conv_units:]
     n_reads = sample_matrix.shape[0]
 
     (
@@ -517,39 +530,61 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
         avgs_biases_output
     ) = calculate_avg_biases(sample_matrix, model, unclamped, label)
 
-    for fk in range(model.num_filter_kernels):
-        # Input units -> conv units
-        conv_sl = model.slices.pool[fk]  # same as conv for deterministic pooling
-        for local_i, pool_id in enumerate(samples.ctx.pooled_idx[fk]):
-            rows, cols = model.input_groups[pool_id]
-            patch = x_input[np.ix_(rows, cols)]
-            global_i = conv_sl.start + local_i
-            Eh = float(sample_matrix[:, global_i].mean())
-            Eh = Eh #if not model.centerize else Eh - model.center_conv[fk][local_i]
-            avgs_kernel_weights[fk] += patch * Eh
+    if model.kernel_size > 0:
+        for fk in range(model.num_filter_kernels):
+            if model.pooling_type == "deterministic":
+                # Input units -> conv_sl units
+                conv_sl = model.slices.pool[fk]  # same as conv_sl for deterministic pooling
+                for local_i, pool_id in enumerate(samples.ctx.pooled_idx[fk]):
+                    rows, cols = model.input_groups[pool_id]
+                    patch = x_input[np.ix_(rows, cols)]
+                    global_i = conv_sl.start + local_i
+                    Eh = float(sample_matrix[:, global_i].mean())
+                    Eh = Eh if not model.centerize else Eh - model.center_conv[fk][local_i]
+                    avgs_kernel_weights[fk] += patch * Eh
+                #avgs_kernel_weights[fk] /= len(samples.ctx.pooled_idx[fk])
+            else: # case probabilistic pooling
+                # Input units -> conv_sl units
+                conv_sl = model.slices.conv[fk]
+                for local_i in range(conv_sl.stop - conv_sl.start):
+                    global_i = conv_sl.start + local_i
+                    Eh = float(sample_matrix[:, global_i].mean())
+                    rows, cols = model.input_groups[local_i]
+                    patch = x_input[np.ix_(rows, cols)]
+                    global_i = conv_sl.start + local_i
+                    Eh = float(sample_matrix[:, global_i].mean())
+                    Eh = Eh if not model.centerize else Eh - model.center_conv[fk][local_i]
+                    avgs_kernel_weights[fk] += patch * Eh
 
-        #avgs_kernel_weights[recurrent_layer] /= len(samples.ctx.pooled_idx[recurrent_layer])
+    else:
+        first_seq_block = sample_matrix[:, model.slices.seq_layers[0][0]]
+        flat_input = x_input.flatten().reshape(-1, 1)
+
+        avgs_kernel_weights += flat_input @ first_seq_block.mean(axis=0, keepdims=True)
+
+
 
     if len(model.sequential_layer_sizes) > 0:
         # TODO: weights pooled to first seq layer are stored here at index 0 -> have to start at 1
         #  at weights_sequential_layers. Use separate variable?
 
         # pooled units -> first sequential layer
-        if model.is_recurrent_weights:
-            for recurrent_layer in range(model.num_filter_kernels):
-                pooled_block = sample_matrix[:, model.slices.pool[recurrent_layer]]
-                first_seq_block = sample_matrix[:, model.slices.seq_layers[recurrent_layer][0]]
-                avgs_weights_sequential_layers[recurrent_layer][0][:] = (pooled_block.T @ first_seq_block) / n_reads
-        else:
-            for i, pool_sl in enumerate(model.slices.pool):
-                pooled_block = sample_matrix[:, pool_sl]
-                first_seq_block = sample_matrix[:, model.slices.seq_layers[0][0]]
+        if model.kernel_size > 0:
+            if model.is_recurrent_weights:
+                for recurrent_layer in range(model.num_filter_kernels):
+                    pooled_block = sample_matrix[:, model.slices.pool[recurrent_layer]]
+                    first_seq_block = sample_matrix[:, model.slices.seq_layers[recurrent_layer][0]]
+                    avgs_weights_sequential_layers[recurrent_layer][0][:] = (pooled_block.T @ first_seq_block) / n_reads
+            else:
+                for i, pool_sl in enumerate(model.slices.pool):
+                    pooled_block = sample_matrix[:, pool_sl]
+                    first_seq_block = sample_matrix[:, model.slices.seq_layers[0][0]]
 
-                pooled = pooled_block #if not model.centerize else pooled_block - model.center_conv[i][0]
+                    pooled = pooled_block if not model.centerize else pooled_block - model.center_conv[i][0]
 
-                first_seq = first_seq_block #if not model.centerize else first_seq_block - model.center_seq[0][0]
+                    first_seq = first_seq_block if not model.centerize else first_seq_block - model.center_seq[0][0]
 
-                avgs_weights_sequential_layers[0][i] = (pooled.T @ first_seq) / n_reads
+                    avgs_weights_sequential_layers[0][i] = (pooled.T @ first_seq) / n_reads
 
         # sequential layers -> sequential layers
         if model.is_recurrent_weights:
@@ -567,8 +602,8 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
                 prev_block = sample_matrix[:, prev_slice]
                 next_block = sample_matrix[:, next_slice]
 
-                prev = prev_block #if not model.centerize else prev_block - model.center_seq[0][li]
-                next = next_block #if not model.centerize else next_block - model.center_seq[0][li + 1]
+                prev = prev_block if not model.centerize else prev_block - model.center_seq[0][li]
+                next = next_block if not model.centerize else next_block - model.center_seq[0][li + 1]
                 avgs_weights_sequential_layers[1][li][:] = (prev.T @ next) / n_reads
 
 
@@ -578,7 +613,7 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
             for r, seq_layer in enumerate(model.slices.seq_layers):
                 for s, seq_slice in enumerate(seq_layer):
                     cur_block = sample_matrix[:, seq_slice]
-                    block = cur_block #if not model.centerize else cur_block - model.center_seq[r]
+                    block = cur_block if not model.centerize else cur_block - model.center_seq[r]
                     avg_outer = (block.T @ block) / n_reads
                     size = seq_slice.stop - seq_slice.start
                     triu = np.triu_indices(size, k=1)
@@ -687,7 +722,7 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
 
     kernel_change_history = []
     sample_change_history = []
-    conv_label = True
+    conv_label = False
 
     if conv_learning_rate is None:
         conv_learning_rate = lr
@@ -716,8 +751,8 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
                     raise ValueError("Empty batch encountered during training")
 
                 if epoch == 5:
-                    conv_label = True
-                    model.centerize = False
+                    conv_label = False
+
 
 
                 try:
@@ -768,8 +803,10 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
             auc = roc_auc_score(Y_true, np.stack(probs_all, axis=0), average="macro", multi_class="ovr")
         auc_list.append(auc)
         acc_list.append(acc)
+
         print("\nacc:", acc )
         print("auc:", auc)
+
 
     return epoch_loss_list, acc_list, auc_list, kernel_change_history
 
@@ -789,9 +826,17 @@ def zero_structure_like(obj):
     except Exception:
         return 0
 
-# Usage examples:
-# errors_weights_sequential = zero_structure_like(model.weights_sequential_layer)
-# errors_weights_interlayer_sequential = zero_structure_like(model.weights_intralayer_sequential)
+
+def compute_fisher_preconditioner(grad: np.ndarray, eps: float = 1e-6):
+    fisher_diag = np.mean(grad ** 2, axis=0) if grad.ndim > 1 else grad ** 2
+    return 1.0 / np.sqrt(fisher_diag + eps)
+
+
+def apply_natural_gradient(param: np.ndarray, grad: np.ndarray, lr: float, eps: float = 1e-6):
+
+    scale = compute_fisher_preconditioner(grad, eps)
+    return param - lr * grad * scale
+
 
 
 

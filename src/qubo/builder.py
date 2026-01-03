@@ -4,18 +4,11 @@ from src.model.cdqbm_state import Conv_Deep_QBM
 
 
 def _conv_linear_terms(model, ctx) -> np.ndarray:
-    """Return linear biases for the conv block"""
+    """Return linear biases for the conv_sl block"""
     bases = []
-    target_std = 0.5
     if model.pooling_type == "deterministic":
         for fk in range(model.num_filter_kernels):
             base = ctx.fmap_flat[fk][ctx.pooled_idx[fk]]
-
-            # zero-mean, unit-variance
-            # mu = base.mean()
-            # sigma = base.std() + 1e-6
-            # base = (base - mu) / sigma
-            # base = base * target_std
 
             if model.hidden_bias_type == "shared":
                 base = base + model.biases_conv_units[fk][0]
@@ -23,26 +16,26 @@ def _conv_linear_terms(model, ctx) -> np.ndarray:
                 base = base + model.biases_conv_units[ctx.pooled_idx[fk]]
 
             bases.append(base)
-            # elif model.hidden_bias_type != "none":
-            #     base = base
-            # bases.append(base)
-        return np.array(bases)
-    raise NotImplementedError("Not implemented for probabilistic pooling")
-    # probabilistic -> all conv units active
-    base = ctx.fmap_flat.copy()
-    if model.hidden_bias_type == "shared":
-        v = float(model.biases_conv_units[0]) if model.biases_conv_units.ndim else float(model.biases_conv_units)
-        base = base + v
-    elif model.hidden_bias_type != "none":
-        base = base
-    return base
+
+    else: # case probabilistic pooling
+        for fk in range(model.num_filter_kernels):
+            base = ctx.fmap_flat[fk]
+            base += model.biases_conv_units[fk][0]
+            bases.append(base)
+
+    return np.array(bases)
+
+
 
 def add_conv_biases(model, Q, ctx):
-    conv_biases = _conv_linear_terms(model, ctx)
-    for fk in range(model.num_filter_kernels):
-        conv_bias = conv_biases[fk]
-        conv_bias = np.diag(conv_bias)
-        Q[model.slices.conv[fk], model.slices.conv[fk]] += conv_bias
+    if model.kernel_size > 0:
+        conv_biases = _conv_linear_terms(model, ctx)
+        for fk in range(model.num_filter_kernels):
+            conv_bias = conv_biases[fk]
+            conv_bias = np.diag(conv_bias)
+            Q[model.slices.conv[fk], model.slices.conv[fk]] += conv_bias
+    else:
+        Q[model.slices.seq_layers[0][0], model.slices.seq_layers[0][0]] += np.diag(ctx.fmap_flat)
 
     return Q
 
@@ -82,16 +75,23 @@ def add_seq_weights(model, Q):
     if model.weights_seq_recurrent is not None:
         Q = add_seq_recurrent_weights(model, Q)
     else:
-        first_seq_sl = model.slices.seq_layers[0][0]
-        for fk in range(model.num_filter_kernels):
-            pool_sl = model.slices.pool[fk]
-            W = model.weights_sequential_layer[0][fk]
-            Q[pool_sl, first_seq_sl] += W
+        if model.kernel_size > 0:
+            first_seq_sl = model.slices.seq_layers[0][0]
+            for fk in range(model.num_filter_kernels):
+                pool_sl = model.slices.pool[fk]
+                W = model.weights_sequential_layer[0][fk]
+                plpl = Q[pool_sl, first_seq_sl]
+                Q[pool_sl, first_seq_sl] += W
 
-        for i, cur_sl in enumerate(model.slices.seq_layers[0][1:]):
-            prev_sl = model.slices.seq_layers[0][i]
-            W = model.weights_sequential_layer[1][i]
-            Q[prev_sl, cur_sl] += W
+            for i, cur_sl in enumerate(model.slices.seq_layers[0][1:]):
+                prev_sl = model.slices.seq_layers[0][i]
+                W = model.weights_sequential_layer[1][i]
+                Q[prev_sl, cur_sl] += W
+        else:
+            for i, cur_sl in enumerate(model.slices.seq_layers[0][:-1]):
+                next_sl = model.slices.seq_layers[0][i+1]
+                W = model.weights_sequential_layer[0][i]
+                Q[cur_sl, next_sl] += W
 
         # within-layer
         if not model.is_restricted:
@@ -102,9 +102,6 @@ def add_seq_weights(model, Q):
 
 
 def add_seq_biases(model, Q):
-    if model.pooling_type == "probabilistic":
-        raise NotImplementedError("Probabilistic QUBO with probabilistic pooling not implemented")
-        num_units_before_seq = model.spec.conv_active + model.spec.n_pooled_units
     for l, seq_layer in enumerate(model.slices.seq_layers):
         for s, sl in enumerate(seq_layer):
             Q[sl, sl] += np.diag(model.biases_sequential_units[l][s])
@@ -131,18 +128,22 @@ def scale_qubo(Q: np.ndarray, model: Conv_Deep_QBM) -> np.ndarray:
     return Q
 
 
+def add_probabilistic_pooling_terms(model: Conv_Deep_QBM, Q: np.ndarray, ctx):
+    Q = add_at_most_one_penalty_upper(model, Q, 0.8225)
+    Q = add_link_penalty_upper(model, Q, ctx, 0.8225)
+    return Q
+
+
 
 def build_unclamped_qubo(model: Conv_Deep_QBM, ctx, beta_eff: float, do_conv_label_bias=False, label_vec=None) -> np.ndarray:
     n = model.spec.n_hidden + model.spec.n_out
     Q = np.zeros((n, n), dtype=float)
 
-    if model.pooling_type == "probabilistic":
-        raise NotImplementedError("Unclamped QUBO with probabilistic pooling not implemented")
-        Q = add_at_most_one_penalty_upper(model, Q, 0.8225)
-        Q = add_link_penalty_upper(model, Q, ctx, 0.8225)
-
     # Conv
     Q = add_conv_biases(model, Q, ctx)
+
+    if model.pooling_type == "probabilistic":
+        Q = add_probabilistic_pooling_terms(model, Q, ctx)
     # Sequential
     if len(model.sequential_layer_sizes) > 0:
         Q = add_seq_weights(model, Q)
@@ -160,10 +161,10 @@ def build_unclamped_qubo(model: Conv_Deep_QBM, ctx, beta_eff: float, do_conv_lab
             conv_label_bias = model.conv_label_bias[idx]
             Q[conv_sl, model.slices.out] += conv_label_bias
 
-        if len(model.sequential_layer_sizes) > 1:
-            for idx, seq_sl in enumerate(model.slices.seq_layers[0][:-1]):
-                seq_label_bias = model.sequential_label_bias[idx]
-                Q[seq_sl, model.slices.out] += seq_label_bias
+        # if len(model.sequential_layer_sizes) > 1:
+        #     for idx, seq_sl in enumerate(model.slices.seq_layers[0][:-1]):
+        #         seq_label_bias = model.sequential_label_bias[idx]
+        #         Q[seq_sl, model.slices.out] += seq_label_bias
 
 
     #Q = scale_qubo(Q, model)
@@ -175,13 +176,11 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float, do_co
     n = model.spec.n_hidden
     Q = np.zeros((n, n), dtype=float)
 
-    if model.pooling_type == "probabilistic":
-        NotImplementedError("Probabilistic QUBO with probabilistic pooling not implemented")
-        Q = add_at_most_one_penalty_upper(model, Q, 0.8225)
-        Q = add_link_penalty_upper(model, Q,  ctx, 0.8225)
-
     # Conv
     Q = add_conv_biases(model, Q, ctx)
+
+    if model.pooling_type == "probabilistic":
+        Q = add_probabilistic_pooling_terms(model, Q, ctx)
 
     # Sequential
     if len(model.sequential_layer_sizes) > 0:
@@ -201,10 +200,10 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float, do_co
             conv_label_bias = (model.conv_label_bias[idx] @ label_vec.reshape(-1, 1)).reshape(-1)
             Q[conv_sl, conv_sl] += np.diag(conv_label_bias)
 
-        if len(model.sequential_layer_sizes) > 1:
-            for idx, seq_sl in enumerate(model.slices.seq_layers[0][:-1]):
-                seq_label_bias = (model.sequential_label_bias[idx] @ label_vec.reshape(-1, 1)).reshape(-1)
-                Q[seq_sl, seq_sl] += np.diag(seq_label_bias)
+        # if len(model.sequential_layer_sizes) > 1:
+        #     for idx, seq_sl in enumerate(model.slices.seq_layers[0][:-1]):
+        #         seq_label_bias = (model.sequential_label_bias[idx] @ label_vec.reshape(-1, 1)).reshape(-1)
+        #         Q[seq_sl, seq_sl] += np.diag(seq_label_bias)
 
 
     #Q = scale_qubo(Q, model)
@@ -213,7 +212,7 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float, do_co
 
 
 
-def add_at_most_one_penalty_upper(model, qubo, penalty):
+def add_at_most_one_penalty_upper(model:Conv_Deep_QBM, qubo, penalty):
     # pairwise penalty for each group for at most one active per pool window
     for g in model.pool_windows:
         ids = np.asarray(g, dtype=int)
@@ -225,23 +224,68 @@ def add_at_most_one_penalty_upper(model, qubo, penalty):
     return qubo
 
 
+
 def add_link_penalty_upper(model, qubo: np.ndarray, ctx, penalty_B: float):
-    # linking through logical OR
-    p_start = ctx.pooled_idx[0] # first pooling var index
-    for g_idx, g in enumerate(model.pool_windows):
-        p = p_start + g_idx
-        ids = np.asarray(g, dtype=int)
-        if ids.size == 0:
-            qubo[p, p] += penalty_B
+    """
+    Enforce for each pooling group:
+        y = OR(x_1, ..., x_n)
+    where:
+        conv_sl contains the x indices (many),
+        pool_sl contains exactly one y index.
+    Updates QUBO in "upper-triangular" form (i <= j).
+    """
+
+    for pool_sl, conv_sl in zip(model.slices.pool, model.slices.conv):
+
+        # --- y index (pool_sl contains only one variable) ---
+        if isinstance(pool_sl, slice):
+            y_idx = pool_sl.start
+        else:
+            # could be int or 1-length list/array
+            y_idx = int(pool_sl[0]) if hasattr(pool_sl, "__len__") else int(pool_sl)
+
+        # --- x indices (conv_sl can be slice or list/array) ---
+        if isinstance(conv_sl, slice):
+            x_ids = np.arange(conv_sl.start, conv_sl.stop, dtype=np.int64)
+        else:
+            x_ids = np.asarray(conv_sl, dtype=np.int64)
+
+        n = x_ids.size
+        if n == 0:
+            continue
+        if n == 1:
+            # OR with one input is just equality y = x
+            x = x_ids[0]
+            # B*(x + y - 2xy)
+            qubo[x, x] += penalty_B
+            qubo[y_idx, y_idx] += penalty_B
+            lo, hi = (x, y_idx) if x < y_idx else (y_idx, x)
+            if lo != hi:
+                qubo[lo, hi] += -2.0 * penalty_B
             continue
 
-        qubo[p, p] += penalty_B
-        qubo[ids, ids] += penalty_B
+        B = penalty_B
 
-        lo = np.minimum(ids, p)
-        hi = np.maximum(ids, p)
+        # Diagonals:
+        # +B * sum_i x_i
+        qubo[x_ids, x_ids] += B
+        # +B * (n-1) * y
+        qubo[y_idx, y_idx] += B * (n - 1)
+
+        # Cross terms x_i * y:  -2B * sum_i x_i y
+        lo = np.minimum(x_ids, y_idx)
+        hi = np.maximum(x_ids, y_idx)
         mask = lo != hi
-        if np.any(mask):
-            qubo[lo[mask], hi[mask]] += -2.0 * penalty_B
+        qubo[lo[mask], hi[mask]] += -2.0 * B
+
+        # Pairwise x_i * x_j:  +2B * sum_{i<j} x_i x_j
+        # Add +2B to all pairs among x_ids (upper triangle only)
+        ii, jj = np.triu_indices(n, k=1)
+        a = x_ids[ii]
+        b = x_ids[jj]
+        lo = np.minimum(a, b)
+        hi = np.maximum(a, b)
+        qubo[lo, hi] += 2.0 * B
 
     return qubo
+

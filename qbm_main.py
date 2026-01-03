@@ -32,8 +32,8 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
 
     print("Loading data...")
     if data_set == "mnist":
-        train_X, train_y = data_loader.get_mnist('src/data/mnist/train-images-idx3-ubyte.gz', 'src/data/mnist/train-labels-idx1-ubyte.gz', classes=[0, 1])
-        test_X, test_y = data_loader.get_mnist('src/data/mnist/t10k-images-idx3-ubyte.gz', 'src/data/mnist/t10k-labels-idx1-ubyte.gz', classes=[0, 1])
+        train_X, train_y = data_loader.get_mnist('src/data/mnist/train-images-idx3-ubyte.gz', 'src/data/mnist/train-labels-idx1-ubyte.gz', classes=[0, 1], samples_per_class=50)
+        test_X, test_y = data_loader.get_mnist('src/data/mnist/t10k-images-idx3-ubyte.gz', 'src/data/mnist/t10k-labels-idx1-ubyte.gz', classes=[0, 1], samples_per_class=20)
     elif data_set == "breastmnist":
         (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('src/data/medmnist/breastmnist.npz')
     elif data_set == "pneumoniamnist":
@@ -44,6 +44,11 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     elif data_set == "cifar-10":
         train_X, train_y = data_loader.get_cifar10_from_torch([3,5], samples_per_class=200, train=True)
         test_X, test_y = data_loader.get_cifar10_from_torch([3,5], samples_per_class=50, train=False)
+    elif data_set == "NEU-CLS-64":
+        train_X, train_y,  val_X, val_y, test_X, test_y = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
+                                                                      classes=["gg", "rp"], seed=seed, image_size=(28, 28))
+        test_X = val_X
+        test_y = val_y
     else:
         raise ValueError("Invalid dataset")
     print("Data loaded")
@@ -109,13 +114,13 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     acc, f1, precision, recall, auc = metrics.save_result(save + name, dqbm,
                                                           dqbm.training_history, dqbm.weight_objects,
                                                           test_y, predictions, ["healthy", "pneumonia"],
-                                                          batch_size, epochs, solver, learning_rate, show_plot=False,
-                                                          save=True)
+                                                          batch_size, epochs, solver, learning_rate, show_plot=True,
+                                                          save=False)
 
     # acc, f1, precision, recall, auc = metrics.save_result(save + name, dqbm,
     #                                                       dqbm.training_history, dqbm.weight_objects,
     #                                                       val_y, predictions, ["negative", "positive"],
-    #                                                       batch_size, epochs, solver, learning_rate, show_plot=False,
+    #                                                       batch_size, epochs, solver_backend, learning_rate, show_plot=False,
     #                                                       save=False)
 
 
@@ -129,7 +134,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
 
 
 if __name__ == '__main__':
-    # solver = 'SA' for Simulated Annealing local simulator
+    # solver_backend = 'SA' for Simulated Annealing local simulator
     # 'BMS' for classical BoltzmannSampler as local simulator
     # 'QBSolv' for testing UQO without losing coins
     # 'DW_2000Q_6' [max hnodes==94 vnodes==21] or 'Advantage_system4.1' [max hnodes==634 vnodes==21] for D-Wave Quantum Annealer (needs coins)
@@ -139,14 +144,14 @@ if __name__ == '__main__':
         description='Generate clustered datasets with outliers.')
     parser.add_argument('-hn', '--hnodes',
                         metavar='INT',
-                        help='Amount of hidden units for RBM model',
-                        default=2,
+                        help='Amount of hidden units for QBM model',
+                        default=5,
                         type=int)
 
     parser.add_argument('-lr', '--learning_rate',
                         metavar='FLOAT',
                         help='Learning rate for training',
-                        default=0.4529451796571889,
+                        default=0.1,
                         type=float)
 
     parser.add_argument('-r', '--restricted',
@@ -157,25 +162,25 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--epochs',
                         metavar='INT',
                         help='Epochs fr training',
-                        default=20,
+                        default=5,
                         type=int)
 
     parser.add_argument('-b', '--batch_size',
                         metavar='INT',
                         help='Batchsize for training',
-                        default=73,
+                        default=8,
                         type=int)
 
     parser.add_argument('-s', '--seed',
                         metavar='INT',
                         help='Seed for RNG',
-                        default=3492574433,
+                        default=3492574,
                         type=int)
     parser.add_argument('-sc', '--sample_count',
                         metavar='INT',
-                        help='number of samples to take from the solver, always in steps of 10:' +
+                        help='number of samples to take from the solver_backend, always in steps of 10:' +
                             "\'10\', \'20\', \'30\', \'40\', ..., \'1000\'",
-                        default=100,
+                        default=10,
                         type=int)
 
     parser.add_argument('--solver',
@@ -186,7 +191,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--data_set',
                         help='Dataset to use, options: \'mnist\', \'breastmnist\', \'pneumoniamnist\', \'fashionmnist\'',
-                        default='pneumoniamnist',
+                        default='mnist',
                         type=str)
 
     parser.add_argument('--num_classes',
@@ -214,7 +219,7 @@ if __name__ == '__main__':
 
 
     flags = parser.parse_args()
-    print("Running with solver", flags.solver)
+    print("Running with solver_backend", flags.solver)
     main(epochs=flags.epochs, n_hidden_nodes=flags.hnodes, learning_rate=flags.learning_rate,
          batch_size=flags.batch_size,  solver=flags.solver, restricted=flags.restricted,
          seed=flags.seed, data_set=flags.data_set, num_classes=flags.num_classes,

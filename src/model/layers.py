@@ -10,7 +10,7 @@ class SeqSpec:
 
 @dataclass(frozen=True)
 class StackSpec:
-    conv_active: list[int]        # number of active conv units
+    conv_active: list[int]        # number of active conv_sl units
     seq: list[SeqSpec]            # sequential layer sizes
     n_out: int                    # output nodes (1 or #classes)
     pooling_type: str             # "deterministic" | "probabilistic"
@@ -20,25 +20,20 @@ class StackSpec:
 
     @property
     def n_hidden(self) -> int:
-        if self.pooling_type == "deterministic":
-            sum = 0
-            for c in self.conv_active:
-                sum += c
-            for s in self.seq:
-                for size in s.sizes:
-                    sum += size
-            return sum
-        elif self.pooling_type == "probabilistic":
-            raise NotImplementedError("n_hidden property not implemented for probabilistic pooling")
-            return self.conv_active + self.n_pooled_units + sum(self.seq.sizes)
-        else:
-            raise ValueError(f"Unknown pooling_type: {self.pooling_type}")
-
+        sum_n_hidden = 0
+        for i, c in enumerate(self.conv_active):
+            sum_n_hidden += c
+            if self.pooling_type == "probabilistic":
+                sum_n_hidden += self.n_pooled_units[i]
+        for s in self.seq:
+            for size in s.sizes:
+                sum_n_hidden += size
+        return sum_n_hidden
 
 @dataclass(frozen=True)
 class BlockSlices:
     conv: list[slice]                 # [0 : conv_active)
-    pool: list[slice]                 # [conv_active : conv_active + n_pooled) only if probabilistic else = conv
+    pool: list[slice]                 # [conv_active : conv_active + n_pooled) only if probabilistic else = conv_sl
     seq_layers: list[Tuple[slice, ...]]
     hidden: slice                     # [0 : n_hidden) n_hidden = everything beside out
     last_hidden: list[slice]
@@ -56,18 +51,17 @@ def build_conv_slices(spec: StackSpec):
     return conv, idx
 
 
-def build_pool_slices(spec: StackSpec, conv: list[slice], idx: int):
+def build_pool_slices(spec: StackSpec, conv_sl: list[slice], idx: int):
     pool = []
-    for i in range(spec.num_filter_kernels):
+    for c in conv_sl:
         if spec.pooling_type == "deterministic":
-            pool_sl = conv[i]
+            pool_sl = c
             pool.append(pool_sl)
             #idx += spec.conv_active[i]
         elif spec.pooling_type == "probabilistic":
-            raise NotImplementedError(
-                "build_slices not implemented for probabilistic pooling with multiple recurrent layers")
-            pool_sl = slice(spec.conv_active, spec.conv_active + spec.n_pooled_units)
-            idx += spec.conv_active + spec.n_pooled_units
+            pool_sl = slice(idx, idx + spec.n_pooled_units[0])
+            pool.append(pool_sl)
+            idx += spec.n_pooled_units[0]
         else:
             raise ValueError(f"Unknown pooling_type: {spec.pooling_type}")
 

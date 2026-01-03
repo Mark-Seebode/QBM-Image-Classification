@@ -1,6 +1,8 @@
 import numpy as np
 from dataclasses import dataclass
-from src.model.inference import prepare_context
+
+from src.model.cdqbm_state import Conv_Deep_QBM
+from src.model.inference import prepare_context, prepare_context_fully_connected
 from src.qubo.builder import build_unclamped_qubo, build_clamped_qubo
 from src.model.layers import last_hidden_slice as _last
 
@@ -14,9 +16,13 @@ class RunOutputs:
         self.probs = probs
         self.ctx = ctx
 
-def run_unclamped(model, x_img, beta_eff: float,
+def run_unclamped(model: Conv_Deep_QBM, x_img, beta_eff: float,
                   one_hot: bool, do_conv_label_bias=False, label_vec=None) -> RunOutputs:
-    ctx = prepare_context(model, x_img)
+
+    if model.kernel_size > 0:
+        ctx = prepare_context(model, x_img)
+    else:
+        ctx = prepare_context_fully_connected(model, x_img)
 
     Q = build_unclamped_qubo(model, ctx, beta_eff, do_conv_label_bias, label_vec)
     samples = model.sampler.sample_Q(Q)
@@ -31,9 +37,17 @@ def run_unclamped(model, x_img, beta_eff: float,
     return RunOutputs(samples=samples, probs=probs, ctx=ctx)
 
 def run_clamped(model, x_img, label_vec, beta_eff: float, do_conv_label_bias=False) -> RunOutputs:
-    ctx = prepare_context(model, x_img)
+    if model.kernel_size > 0:
+        ctx = prepare_context(model, x_img)
+    else:
+        ctx = prepare_context_fully_connected(model, x_img)
 
     Q = build_clamped_qubo(model, ctx, np.asarray(label_vec, float), beta_eff, do_conv_label_bias)
     samples = model.sampler.sample_Q(Q, label_vec)
     return RunOutputs(samples=samples, probs=None, ctx=ctx)
+
+
+
+
+
 

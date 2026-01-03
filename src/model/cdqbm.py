@@ -123,7 +123,7 @@ class Conv_Deep_Disc_QBM():
                 self.subgraphs = None
 
             self.client = Client(token=self.TOKEN, solver=solver)
-            # use an Advantage solver (first generation -> with 5000 Qubits)
+            # use an Advantage solver_backend (first generation -> with 5000 Qubits)
             self.solver = self.client.get_solver(name=solver)
             self.qpu_time_used = 0
         # number of simulated annealing steps to create one sample
@@ -320,7 +320,7 @@ class Conv_Deep_Disc_QBM():
         self.num_active_units += len(self.pooled_units)
 
         # Inter-layer (within-layer) connections (if not restricted)
-        # TODO: is interlayer connections in the conv layer good?
+        # TODO: is interlayer connections in the conv_sl layer good?
         # if not self.restricted:
         #     if self.pooling_type == "determinisitic":
         #         pass #weights_hidden_interlayer = np.triu(np.random.uniform(-1, 1, len(self.pooled_units)), k=1)
@@ -411,7 +411,7 @@ class Conv_Deep_Disc_QBM():
 
     def add_first_hidden_layer_biases_to_qubo(self, qubo_matrix, input_image_2d, _unused):
         """
-        Compute linear terms for layer-0 from a valid 2-D conv of the input image
+        Compute linear terms for layer-0 from a valid 2-D conv_sl of the input image
         with the first kernel. Insert them on the diagonal of the first hidden block.
         """
         k2d = np.asarray(self.kernel_weights)
@@ -939,7 +939,7 @@ class Conv_Deep_Disc_QBM():
                             samples = self.get_parallel_qa_samples(qubo_matrix, label)
             else:
                 raise Exception(
-                    'No valid solver specified. Valid solvers are "SA", "BMS", "MyQLM", "QBSolv", "DW_2000Q_6", "Advantage_system4.1", "FujitsuDAU"')
+                    'No valid solver_backend specified. Valid solvers are "SA", "BMS", "MyQLM", "QBSolv", "DW_2000Q_6", "Advantage_system4.1", "FujitsuDAU"')
         return samples
 
         # done
@@ -969,7 +969,7 @@ class Conv_Deep_Disc_QBM():
         sample_matrix = np.vstack([np.array(list(s.values())) for s in samples])
 
         if self.pooling_type == "probabilistic":
-            #remove the conv units from the sampel matrix
+            #remove the conv_sl units from the sampel matrix
             sample_matrix = sample_matrix[:, self.num_conv_units:]
         n_reads = sample_matrix.shape[0]
 
@@ -1244,7 +1244,7 @@ class Conv_Deep_Disc_QBM():
         p_start = self.num_conv_units  # first pooling var index
         for g_idx, g in enumerate(self.pool_windows):
             p = p_start + g_idx  # pooling var for this group
-            ids = np.asarray(g, dtype=int)  # conv-unit indices in this pool
+            ids = np.asarray(g, dtype=int)  # conv_sl-unit indices in this pool
             if ids.size == 0:
                 # still add B * p_g to keep the penalty well-defined
                 qubo[p, p] += penalty_B
@@ -1384,7 +1384,7 @@ class Conv_Deep_Disc_QBM():
         print("Training with \n"
                 f"batch size: {batch_size}\n",
                 f"learning rate: {learning_rate}\n",
-                f"conv units: {self.num_conv_units}\n",
+                f"conv_sl units: {self.num_conv_units}\n",
                 f"sample count: {self.sample_count}\n",
                 f"beta eff: {self.beta_eff}\n",
                 f"layer dimensions: {self.conv_layer_dim}\n",
@@ -1522,7 +1522,7 @@ class Conv_Deep_Disc_QBM():
         self.client.close()
         # get new connection to client
         self.client = Client(token=self.TOKEN, solver=solver_id)
-        # make sure to get the same solver from this connection
+        # make sure to get the same solver_backend from this connection
         self.solver = self.client.get_solver(name=solver_id)
 
 
@@ -1547,7 +1547,7 @@ class Conv_Deep_Disc_QBM():
             num_active_units = self.num_total_units + len(self.pooled_units)
         else:
             num_active_units = self.num_active_units
-        samples_of_output = np_samples[:, num_active_units:] #TODO only works if there is nothing but conv or conv pool
+        samples_of_output = np_samples[:, num_active_units:] #TODO only works if there is nothing but conv_sl or conv_sl pool
         average_output = np.mean(samples_of_output, axis=0)
         rounded_output = np.round(average_output).astype(int)
         one_hot = np.argmax(average_output)
@@ -1694,7 +1694,7 @@ class Conv_Deep_Disc_QBM():
                 pos[node] = (layer, -i)
                 G.add_node(node, layer=f'hidden{layer}')
 
-            # connect all-to-all (as your inter-conv layers do)
+            # connect all-to-all (as your inter-conv_sl layers do)
             for p in prev_nodes:
                 for h in h_nodes:
                     G.add_edge(p, h)

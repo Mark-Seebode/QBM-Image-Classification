@@ -51,11 +51,11 @@ def main(seed=19, solver="SA", sample_count=100,
     print("Loading data...")
     if data_set == "mnist":
         train_x, train_y = data_loader.get_mnist('src/data/mnist/train-images-idx3-ubyte.gz',
-                                                 'src/data/mnist/train-labels-idx1-ubyte.gz', classes=[0, 1, 2, 3]
-                                                 , samples_per_class=20)
+                                                 'src/data/mnist/train-labels-idx1-ubyte.gz', classes=[0, 1]
+                                                 , samples_per_class=50)
         test_x, test_y = data_loader.get_mnist('src/data/mnist/t10k-images-idx3-ubyte.gz',
-                                               'src/data/mnist/t10k-labels-idx1-ubyte.gz', classes=[0, 1, 2, 3],
-                                               samples_per_class=5)
+                                               'src/data/mnist/t10k-labels-idx1-ubyte.gz', classes=[0, 1],
+                                               samples_per_class=20)
     elif data_set == "breastmnist":
         (train_x, train_y), (val_x, val_y), (test_x, test_y) = data_loader.get_medmnist(
             'src/data/medmnist/breastmnist.npz')
@@ -80,10 +80,10 @@ def main(seed=19, solver="SA", sample_count=100,
         if test_on_val:
             test_x, test_y = val_x, val_y
 
-    elif data_set == "NEU-CLS-64":
-        train_x, train_y, val_x, val_y, test_x, test_y = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
+    elif data_set == "NEU-CLS-64": # /home/s/seebode/BIG/
+        train_x, train_y, val_x, val_y, test_x, test_y = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
                                                                       classes=["gg", "rp"], seed=seed,
-                                                                        image_size=(28, 28))
+                                                                        image_size=(28, 28), contrast_factor=1.5)
         if test_on_val:
             test_x, test_y = val_x, val_y
     else:
@@ -155,10 +155,19 @@ def main(seed=19, solver="SA", sample_count=100,
     )
 
     print('QBM created with:\n'
-          f'  active hidden nodes: {qbm.num_active_units_per_layer}\n'
+          f'  active hidden nodes: {qbm.num_hidden_units_per_layer}\n'
           f'  label nodes: {qbm.num_label_nodes}\n'
           f'  total hidden nodes: {qbm.num_hidden_nodes}\n'
           f'  num params: {qbm.count_parameters()}\n')
+    import matplotlib.pyplot as plt
+    # plot initial kernel
+    plt.figure()
+    for k in range(num_kernels):
+        plt.subplot(1, num_kernels, k+1)
+        plt.imshow(qbm.kernel_weights[k], cmap='gray')
+        plt.title(f'Initial Kernel {k+1}')
+        plt.axis('off')
+    plt.show()
 
 
 
@@ -172,6 +181,28 @@ def main(seed=19, solver="SA", sample_count=100,
 
     with open(save + f"auc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(auc_list, f)
+
+    import matplotlib.pyplot as plt
+
+    # line plot of epochsloss
+    plt.figure()
+    plt.plot(range(len(epoch_loss_list)), epoch_loss_list)
+    plt.title('Training Loss per Epoch')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.grid()
+    plt.show()
+
+    # plot trained kernels
+    plt.figure()
+    for k in range(num_kernels):
+        plt.subplot(1, num_kernels, k+1)
+        plt.imshow(qbm.kernel_weights[k], cmap='gray')
+        plt.title(f'Trained Kernel {k+1}')
+        plt.axis('off')
+    plt.show()
+
+
 
 
 
@@ -190,7 +221,7 @@ if __name__ == '__main__':
                         help='Learning rate for training')
 
     parser.add_argument('-clr', '--conv_learning_rate',
-                        default=0.5,
+                        default=0.005,
                         type=float,
                         help='Learning rate for training')
 
@@ -200,22 +231,22 @@ if __name__ == '__main__':
                         help='Restricted weights between hidden nodes')
 
     parser.add_argument('-e', '--epochs',
-                        default=20,
+                        default=5,
                         type=int,
                         help='Epochs for training')
 
     parser.add_argument('-b', '--batch_size',
-                        default=4,
+                        default=2,
                         type=int,
                         help='Batchsize for training')
 
     parser.add_argument('-s', '--seed',
-                        default=97,
+                        default=8688,
                         type=int,
                         help='Seed for RNG')
 
     parser.add_argument('-sc', '--sample_count',
-                        default=100,
+                        default=10,
                         type=int,
                         help='Number of samples to take from the solver_backend (reads)')
 
@@ -230,7 +261,7 @@ if __name__ == '__main__':
                         help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system1.8')")
 
     parser.add_argument('--data_set',
-                        default='NEU-CLS-64',
+                        default='mnist',
                         type=str,
                         help="Dataset: 'mnist', 'breastmnist', 'pneumoniamnist', 'fashionmnist', 'cifar-10', 'miniimagenet', 'NEU-CLS-64'")
 
@@ -260,7 +291,7 @@ if __name__ == '__main__':
                         help='Size of the convolutional kernel')
 
     parser.add_argument('--num_kernels',
-                        default=8,
+                        default=1,
                         type=int,
                         help='number of convolutional kernels')
 

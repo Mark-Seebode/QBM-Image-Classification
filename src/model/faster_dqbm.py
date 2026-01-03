@@ -21,6 +21,8 @@ from matplotlib import pyplot as plt
 from dwave.cloud import Client
 from dwave.embedding import embed_bqm, unembed_sampleset, EmbeddedStructure
 import dwave.embedding as dwave_embedding
+from tensorflow.python.ops.initializers_ns import identity
+
 import src.embedding as emb
 
 from itertools import repeat
@@ -128,7 +130,7 @@ class Disc_QBM():
                 self.subgraphs = None
 
             self.client = Client(token=self.TOKEN, solver=solver)
-            # use an Advantage solver (first generation -> with 5000 Qubits)
+            # use an Advantage solver_backend (first generation -> with 5000 Qubits)
             self.solver = self.client.get_solver(name=solver)
             self.qpu_time_used = 0
         # number of simulated annealing steps to create one sample
@@ -679,82 +681,15 @@ class Disc_QBM():
                             samples = self.get_parallel_qa_samples(qubo_matrix, label)
             else:
                 raise Exception(
-                    'No valid solver specified. Valid solvers are "SA", "BMS", "MyQLM", "QBSolv", "DW_2000Q_6", "Advantage_system4.1", "FujitsuDAU"')
+                    'No valid solver_backend specified. Valid solvers are "SA", "BMS", "MyQLM", "QBSolv", "DW_2000Q_6", "Advantage_system4.1", "FujitsuDAU"')
         #print("\n\n", samples)
         return samples
 
 
 
-    def get_average_configuration(self, samples: list, input_vector, label=None):
+    def get_average_configuration_batch(self, samples_batch: list, input_vector_batch, y_batch=None):
         ''' Takes samples from Annealer and averages for each neuron and connection
         '''
-
-        # unclamped if label == None
-        unclamped = label is None
-        label = np.array(label) if label is not None else label
-        label = label.flatten() if label is not None else label
-        # biases (row = sample, column = neuron)
-        np_samples = np.vstack(
-            tuple([np.array(list(sample.values())) for sample in samples]))
-
-        avgs_biases = np.average(np_samples, axis=0)
-        avgs_biases_hidden = avgs_biases[self.n_output_nodes:] if unclamped else avgs_biases
-        avgs_biases_output = avgs_biases[:self.n_output_nodes] if unclamped else label
-
-        # weights
-        avgs_weights_visible_to_hidden = np.zeros(
-            self.weights_all_visible_to_hidden.shape)
-        avgs_weights_visible_to_output = np.zeros(
-            self.weights_clamped_visible_to_output.shape)
-        avgs_weights_output_output = np.zeros(
-            self.weights_output_output.shape)
-
-        if unclamped:
-            visible_vector = input_vector
-            n_visible_nodes = self.dim_input
-        else:
-            visible_vector = np.concatenate((input_vector, label))
-            n_visible_nodes = self.n_output_nodes + self.dim_input
-
-        for h in range(self.n_hidden_nodes):
-            # visible to hidden connections
-            for v in range(n_visible_nodes):
-                x, y = (visible_vector[v], np_samples[:, self.n_output_nodes + h]) if unclamped else (
-                    visible_vector[v], np_samples[:, h])
-                avgs_weights_visible_to_hidden[v, h] = np.average(x * y)
-
-        for v in range(self.dim_input):
-            # visible to output connections
-            for out in range(self.n_output_nodes):
-                x, y = (input_vector[v], np_samples[:, out]) if unclamped else (
-                    input_vector[v], label[out])
-                avgs_weights_visible_to_output[v, out] = np.average(x * y)
-
-        for o in range(self.n_output_nodes):
-            # output to output connections
-            for o2 in range(o + 1, self.n_output_nodes):
-                x, y = (np_samples[:, o], np_samples[:, o2]) if unclamped else (
-                    label[o], label[o2])
-                avgs_weights_output_output[o, o2] = np.average(x * y)
-
-        if not self.restricted:
-            avgs_weights_hidden_hidden = np.zeros(
-                self.weights_hidden_hidden.shape)
-            for h1 in range(self.n_hidden_nodes):
-                for h2 in range(h1 + 1, self.n_hidden_nodes):
-                    x, y = (np_samples[:, self.n_output_nodes + h1],
-                            np_samples[:, self.n_output_nodes + h2]) if unclamped else (
-                        np_samples[:, h1], np_samples[:, h2])
-                    avgs_weights_hidden_hidden[h1, h2] = np.average(x * y)
-
-        else:
-            avgs_weights_hidden_hidden = None
-        return avgs_biases_hidden, avgs_biases_output, avgs_weights_visible_to_hidden, avgs_weights_visible_to_output, avgs_weights_output_output, avgs_weights_hidden_hidden  # avgs_weights_output_to_hidden, avgs_weights_output_to_output
-
-    def get_average_configuration_batch(self, samples_batch: list, x_batch, y_batch=None):
-        ''' Takes samples from Annealer and averages for each neuron and connection
-        '''
-
         # unclamped if label == None
         is_unclamped = y_batch is None
 
@@ -770,82 +705,85 @@ class Disc_QBM():
             self.weights_hidden_hidden.shape)
 
         for i in range(len(samples_batch)):
-
             label = np.array(y_batch[i]) if not is_unclamped else None
             label = label.flatten() if not is_unclamped else None
+            input_vector = input_vector_batch[i]
 
             np_samples = np.vstack(
                 tuple([np.array(list(sample.values())) for sample in samples_batch[i]]))
+
 
             avgs_biases = np.average(np_samples, axis=0)
             avgs_biases_hidden += avgs_biases[self.n_output_nodes:] if is_unclamped else avgs_biases
             avgs_biases_output += avgs_biases[:self.n_output_nodes] if is_unclamped else label
 
             if is_unclamped:
-                visible_vector = x_batch[i]
+                visible_vector = input_vector
                 n_visible_nodes = self.dim_input
             else:
-                visible_vector = np.concatenate((x_batch[i], label))
+                visible_vector = np.concatenate((label, input_vector))
                 n_visible_nodes = self.n_output_nodes + self.dim_input
 
-            # All visible to hidden
-            if is_unclamped:
-                y = np_samples[:, self.n_output_nodes:]  # (n_samples, n_hidden_nodes)
-                x = visible_vector.reshape(-1, 1)  # (n_visible_nodes, 1)
-                avgs_weights_visible_to_hidden[:self.dim_input, :self.dim_input] += x @ y.mean(axis=0, keepdims=True)  # (n_visible_nodes, n_hidden_nodes)
+            # for h in range(self.n_hidden_nodes):
+            #     # visible to hidden connections
+            #     for v in range(n_visible_nodes):
+            #         if not is_unclamped:
+            #             x, y = visible_vector[v], np_samples[:, h]
+            #             avgs_weights_visible_to_hidden[v, h] += np.average(x * y)
+            #         else:
+            #             x, y = visible_vector[v], np_samples[:, self.n_output_nodes + h]
+            #             avgs_weights_visible_to_hidden[self.n_output_nodes + v, h] += np.average(x * y)
 
-            else:
-                y = np_samples[:, :self.n_hidden_nodes]
-                x = visible_vector.reshape(-1, 1)  # (n_visible_nodes, 1)
-                avgs_weights_visible_to_hidden += x @ y.mean(axis=0, keepdims=True)  # (n_visible_nodes, n_hidden_nodes)
-
-            # input to output
-            if is_unclamped:
-                x = x_batch[i].reshape(-1, 1)  # shape (dim_input, 1)
-                y = np_samples[:, :self.n_output_nodes]  # shape (n_samples, n_output_nodes)
-                avgs_weights_visible_to_output += ((x @ y.mean(axis=0, keepdims=True)).squeeze()).reshape(-1, 1)
-            else:
-                x = x_batch[i].reshape(-1, 1)  # shape (dim_input, 1)
-                y = label.reshape(1, -1)  # shape (1, n_output_nodes)
-                k = (x @ y).squeeze()
-                k = k.reshape(-1, 1)
-                avgs_weights_visible_to_output += k
-
-            # output to output
-            if is_unclamped:
-                # y: shape (n_samples, n_output_nodes)
-                y = np_samples[:, :self.n_output_nodes]
-
-                # Compute average outer product across samples
-                avg_outer = np.einsum('ni,nj->ij', y, y) / y.shape[0]
-
-                # Keep only upper triangle (like the original loop)
-                triu_idx = np.triu_indices(self.n_output_nodes, k=1)
-                avgs_weights_output_output[triu_idx] += avg_outer[triu_idx]
-            else:
-                triu_idx = np.triu_indices(self.n_output_nodes, k=1)
-                outer = np.outer(label, label)
-                avgs_weights_output_output[triu_idx] += outer[triu_idx]
-
-            # hidden to hidden
-            if not self.restricted:
                 if is_unclamped:
+                    y = np_samples[:, self.n_output_nodes:]  # (n_samples, n_hidden_nodes)
+                    x = visible_vector.reshape(-1, 1)  # (n_visible_nodes, 1)
+                    avgs_weights_visible_to_hidden[self.n_output_nodes:, :] += x @ y.mean(axis=0,
+                                                                                                   keepdims=True)  # (n_visible_nodes, n_hidden_nodes)
 
-                    # y: shape (n_samples, n_output_nodes)
-                    y = np_samples[:, :self.n_output_nodes]
-
-                    # Compute average outer product across samples
-                    avg_outer = np.einsum('ni,nj->ij', y, y) / y.shape[0]
-
-                    # Keep only upper triangle (like the original loop)
-                    triu_idx = np.triu_indices(self.n_output_nodes, k=1)
-                    avgs_weights_output_output[triu_idx] += avg_outer[triu_idx]
                 else:
-                    outer = np.outer(label, label)
-                    avgs_weights_output_output[triu_idx] += outer[triu_idx]
+                    y = np_samples[:, :]
+                    x = visible_vector.reshape(-1, 1)  # (n_visible_nodes, 1)
+                    avgs_weights_visible_to_hidden += x @ y.mean(axis=0,
+                                                                 keepdims=True)  # (n_visible_nodes, n_hidden_nodes)
+
+            # output to hidden connections unclamped
+            if is_unclamped:
+                for h in range(self.n_hidden_nodes):
+                    for o in range(self.n_output_nodes):
+                        x, y = np_samples[:, o], np_samples[:, self.n_output_nodes + h]
+                        avgs_weights_visible_to_hidden[o:, h] += np.average(x * y)
+
+
+
+            for v in range(self.dim_input):
+                # visible to output connections
+                for out in range(self.n_output_nodes):
+                    x, y = (input_vector[v], np_samples[:, out]) if is_unclamped else (
+                        input_vector[v], label[out])
+                    avgs_weights_visible_to_output[v, out] += np.average(x * y)
+
+            for o in range(self.n_output_nodes):
+                # output to output connections
+                for o2 in range(o + 1, self.n_output_nodes):
+                    x, y = (np_samples[:, o], np_samples[:, o2]) if is_unclamped else (
+                        label[o], label[o2])
+                    avgs_weights_output_output[o, o2] += np.average(x * y)
+
+            if not self.restricted:
+                avgs_weights_hidden_hidden = np.zeros(
+                    self.weights_hidden_hidden.shape)
+                for h1 in range(self.n_hidden_nodes):
+                    for h2 in range(h1 + 1, self.n_hidden_nodes):
+                        x, y = (np_samples[:, self.n_output_nodes + h1],
+                                np_samples[:, self.n_output_nodes + h2]) if is_unclamped else (
+                            np_samples[:, h1], np_samples[:, h2])
+                        avgs_weights_hidden_hidden[h1, h2] += np.average(x * y)
+
             else:
                 avgs_weights_hidden_hidden = None
         return avgs_biases_hidden, avgs_biases_output, avgs_weights_visible_to_hidden, avgs_weights_visible_to_output, avgs_weights_output_output, avgs_weights_hidden_hidden  # avgs_weights_output_to_hidden, avgs_weights_output_to_output
+
+
 
     def calcualte_parallel_subgraphs(self, num_partitions=10):
         pegasus_graph = dnx.pegasus_graph(16)
@@ -968,6 +906,11 @@ class Disc_QBM():
 
         return samples_all
 
+    def nll_from_probs_binary(self,probs: np.ndarray, y: int, eps=1e-12) -> float:
+        # probs = [p0, p1]
+        p = probs[int(y)]
+        return float(-np.log(max(p, eps)))
+
 
     def compute_nll(self, y_batch, samples_unclamped, nll):
         total_nll_loss = 0
@@ -975,19 +918,34 @@ class Disc_QBM():
         for i in range(len(y_batch)):
             y = y_batch[i]
 
-            # Compute predictions from samples (first output node)
+            # # Compute predictions from samples (first output node)
             np_samples = np.vstack([np.array(list(sample.values())) for sample in samples_unclamped[i]])
-            output_probs = np.mean(np_samples[:, :self.n_output_nodes], axis=0)  # Average over samples
-            output_probs = [1-output_probs[0], output_probs[0]]
+            # output_probs = np.mean(np_samples[:, :self.n_output_nodes], axis=0)  # Average over samples
+            # output_probs = [1-output_probs[0], output_probs[0]]
+            #
+            # # Convert to log probabilities (for NLLLoss)
+            # output_probs = torch.tensor(output_probs, dtype=torch.float32)
+            # log_probs = torch.log(output_probs + 1e-12)  # Add epsilon to avoid log(0) #log_probs = torch.nn.functional.log_softmax(output_probs, dim=0)
+            #
+            # # Compute NLL loss
+            # label = torch.tensor([y], dtype=torch.long)
+            # loss = nll(log_probs.unsqueeze(0), label)  # Add batch dimension
+            # total_nll_loss += loss.item()
 
-            # Convert to log probabilities (for NLLLoss)
-            output_probs = torch.tensor(output_probs, dtype=torch.float32)
-            log_probs = torch.log(output_probs + 1e-12)  # Add epsilon to avoid log(0) #log_probs = torch.nn.functional.log_softmax(output_probs, dim=0)
-
-            # Compute NLL loss
-            label = torch.tensor([y], dtype=torch.long)
-            loss = nll(log_probs.unsqueeze(0), label)  # Add batch dimension
-            total_nll_loss += loss.item()
+            out = np_samples[:, :self.n_output_nodes].mean(axis=0)
+            if not self.use_one_hot_encoding:
+                p1 = float(out[0]);p1 = min(max(p1, 1e-12), 1 - 1e-12)
+                probs = np.array([1.0 - p1, p1], dtype=np.float32)
+            else:
+                s = float(out.sum())
+                probs = (out / s).astype(np.float32) if s > 0 else np.full_like(out, 1 / len(out))
+            if not self.use_one_hot_encoding:
+                loss = self.nll_from_probs_binary(probs, int(y))
+            else:
+                yidx = np.argmax(y)
+                p = max(probs[int(yidx)], 1e-12)
+                loss = float(-np.log(p))
+            total_nll_loss += loss
 
         avg_batch_loss = total_nll_loss / len(y_batch)
 
@@ -1091,6 +1049,8 @@ class Disc_QBM():
               f"beta eff: {self.beta_eff}\n",
               )
 
+        weight_change_list = []
+
         for epoch in tqdm(range(1, self.epochs + 1), desc="Training", ncols=80):
             # print(f'Epoch {epoch}')
             batchnum = 1
@@ -1101,7 +1061,7 @@ class Disc_QBM():
             epoch_errors = 0
             epoch_nll = 0
             nll = torch.nn.NLLLoss()
-
+            weights_visible_to_hidden_before = self.weights_all_visible_to_hidden.copy()
             for b in tqdm(range(0, len(train_X), batch_size), desc=f"Training current epoch {epoch}", ncols=80, leave=False):
                 if (b + batch_size) <= len(train_X):
                     x_batch = train_X[b:b + batch_size]  # [X_train[i] for i in range(b, b + batch_size)]
@@ -1152,6 +1112,10 @@ class Disc_QBM():
             if self.solver_string == "Advantage_system4.1" or self.solver_string == "Advantage_system7.1":
                 print(f"QPU time used after {epoch} epochs: {self.qpu_time_used} microseconds")
 
+            weights_visible_to_hidden_current = self.weights_all_visible_to_hidden.copy()
+            weight_change_list.append(np.linalg.norm(weights_visible_to_hidden_current - weights_visible_to_hidden_before))
+
+
         if self.solver_string == "Advantage_system4.1" or self.solver_string == "Advantage_system7.1":
             print(f"QPU time used for one training run: {self.qpu_time_used} microseconds")
 
@@ -1164,6 +1128,18 @@ class Disc_QBM():
             pickle.dump(self.training_history.auc_per_epoch, f)
         with open(f"{save_folder}/combined_acc_auc_per_epoch{self.seed}.pkl", "wb") as f:
             pickle.dump(self.training_history.combined_acc_auc_per_epoch, f)
+
+
+        import matplotlib.pyplot as plt
+        # plot weights_visible_to_hidden weight change
+        plt.figure()
+        plt.plot(weight_change_list)
+        plt.xlabel("Epoch")
+        plt.ylabel("Weight Change (Frobenius Norm)")
+        plt.title("Change in Visible-to-Hidden Weights Over Training")
+        plt.grid()
+        plt.show()
+
 
 
     def find_embedding_with_client(self, bqm, save, label = None):
@@ -1221,7 +1197,7 @@ class Disc_QBM():
         self.client.close()
         # get new connection to client
         self.client = Client(token=self.TOKEN, solver=solver_id)
-        # make sure to get the same solver from this connection
+        # make sure to get the same solver_backend from this connection
         self.solver = self.client.get_solver(name=solver_id)
 
     def predict(self, data):

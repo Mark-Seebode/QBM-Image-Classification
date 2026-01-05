@@ -37,7 +37,7 @@ def train_one_iteration(
 
     (
         errors_weights_kernels,
-        errors_weights_interlayer_sequential,
+        errors_weights_intralayer_sequential,
         errors_weights_sequential,
         error_weights_seq_recurrent,
         errors_weights_hidden_to_output,
@@ -100,7 +100,7 @@ def train_one_iteration(
             avgs_biases_sequential_c,
             avgs_biases_output_c,
             avgs_kernel_weights_c,
-            avgs_weights_interlayer_sequential_c,
+            avgs_weights_intralayer_sequential_c,
             avgs_weights_sequential_layers_c,
             avgs_weights_seq_recurrent_c,
             avgs_weights_hidden_to_output_c,
@@ -114,7 +114,7 @@ def train_one_iteration(
             avgs_biases_sequential_u,
             avgs_biases_output_u,
             avgs_kernel_weights_u,
-            avgs_weights_interlayer_sequential_u,
+            avgs_weights_intralayer_sequential_u,
             avgs_weights_sequential_layers_u,
             avgs_weights_seq_recurrent_u,
             avgs_weights_hidden_to_output_u,
@@ -138,12 +138,12 @@ def train_one_iteration(
             #           avgs_clamped_weights_hidden_interlayer - avgs_unclamped_weights_hidden_interlayer)
             # remains zero if restricted
         if not model.is_restricted:
-            for i, (ewis, ewisc, ewisu) in enumerate(zip(errors_weights_interlayer_sequential,
-                                            avgs_weights_interlayer_sequential_c,
-                                            avgs_weights_interlayer_sequential_u)):
+            for i, (ewis, ewisc, ewisu) in enumerate(zip(errors_weights_intralayer_sequential,
+                                            avgs_weights_intralayer_sequential_c,
+                                            avgs_weights_intralayer_sequential_u)):
                 # element-wise update for nested list of arrays
                 ewis = [ewis[j] + (ewisc[j] - ewisu[j]) for j in range(len(ewis))]
-                errors_weights_interlayer_sequential[i] = ewis
+                errors_weights_intralayer_sequential[i] = ewis
 
             # errors_weights_interlayer_sequential[recurrent_layer] = \
             # [errors_weights_interlayer_sequential[recurrent_layer][i] +
@@ -191,8 +191,8 @@ def train_one_iteration(
 
     # errors_weights_hidden_interlayer /= x_batch.shape[0]
     if not model.is_restricted:
-        for i in range(len(errors_weights_interlayer_sequential)):
-            errors_weights_interlayer_sequential[i] = [error / X.shape[0] for error in errors_weights_interlayer_sequential[i]]
+        for i in range(len(errors_weights_intralayer_sequential)):
+            errors_weights_intralayer_sequential[i] = [error / X.shape[0] for error in errors_weights_intralayer_sequential[i]]
 
     for i in range(len(errors_weights_sequential)):
         errors_weights_sequential[i] = [error / X.shape[0] for error in errors_weights_sequential[i]]
@@ -222,10 +222,10 @@ def train_one_iteration(
         # self.weights_hidden_interlayer -= learning_rate * errors_weights_hidden_interlayer
         if not model.is_restricted:
             for i, _ in enumerate(zip(model.weights_intralayer_sequential,
-                                        errors_weights_interlayer_sequential)):
+                                        errors_weights_intralayer_sequential)):
                 model.weights_intralayer_sequential[i] = [apply_natural_gradient(weights, errors_weights, lr)#weights - lr * errors_weights
                                                         for weights, errors_weights in zip(model.weights_intralayer_sequential[i],
-                                                                                              errors_weights_interlayer_sequential[i])]
+                                                                                              errors_weights_intralayer_sequential[i])]
 
 
     for i, _ in enumerate(zip(model.weights_sequential_layer,
@@ -242,7 +242,6 @@ def train_one_iteration(
     # for i, _ in enumerate(zip(model.weights_hidden_to_output,errors_weights_hidden_to_output)):
     #     model.weights_hidden_to_output[i] -= lr * errors_weights_hidden_to_output[i]
 
-    # Sequential / hidden-to-output layers
     for i in range(len(model.weights_hidden_to_output)):
         model.weights_hidden_to_output[i] = apply_natural_gradient(
             model.weights_hidden_to_output[i],
@@ -512,7 +511,7 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
 
     (
      avgs_kernel_weights,
-     avgs_weights_interlayer_sequential,
+     avgs_weights_intralayer_sequential,
      avgs_weights_sequential_layers,
      avgs_weights_seq_recurrent,
      avgs_weights_hidden_to_output,
@@ -617,7 +616,7 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
                     avg_outer = (block.T @ block) / n_reads
                     size = seq_slice.stop - seq_slice.start
                     triu = np.triu_indices(size, k=1)
-                    avgs_weights_interlayer_sequential[r][s][triu] = avg_outer[triu]
+                    avgs_weights_intralayer_sequential[r][s][triu] = avg_outer[triu]
 
         if model.is_recurrent_weights:
             # recurrent connections between layers
@@ -704,7 +703,7 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
             avgs_biases_sequential,
             avgs_biases_output,
             avgs_kernel_weights,
-            avgs_weights_interlayer_sequential,
+            avgs_weights_intralayer_sequential,
             avgs_weights_sequential_layers,
             avgs_weights_seq_recurrent,
             avgs_weights_hidden_to_output,
@@ -714,7 +713,7 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
         )
 
 
-def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, beta_eff, conv_learning_rate=None, one_hot: bool = False, test_x=None, test_y=None):
+def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, sample_count, beta_eff, conv_learning_rate=None, one_hot: bool = False, test_x=None, test_y=None):
     n = len(train_x)
     epoch_loss_list = []
     auc_list = []
@@ -722,7 +721,7 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
 
     kernel_change_history = []
     sample_change_history = []
-    conv_label = False
+    conv_label = True
 
     if conv_learning_rate is None:
         conv_learning_rate = lr
@@ -749,10 +748,6 @@ def train_model(model, train_x, train_y, batch_size, epochs, lr, sample_count, b
 
                 if len(x_batch) == 0:
                     raise ValueError("Empty batch encountered during training")
-
-                if epoch == 5:
-                    conv_label = False
-
 
 
                 try:
@@ -835,7 +830,7 @@ def compute_fisher_preconditioner(grad: np.ndarray, eps: float = 1e-6):
 def apply_natural_gradient(param: np.ndarray, grad: np.ndarray, lr: float, eps: float = 1e-6):
 
     scale = compute_fisher_preconditioner(grad, eps)
-    return param - lr * grad * scale
+    return param - lr * grad #* scale
 
 
 

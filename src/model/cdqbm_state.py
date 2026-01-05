@@ -284,7 +284,7 @@ class Conv_Deep_QBM(MODEL):
         if not self.is_restricted:
             weights_intralayer_sequential_current = []
             for size in self.sequential_layer_sizes:
-                weights = np.triu(np.random.normal(0.0, 0.01, size))#np.zeros((size)))  # orthogonal_init((1,size), seed=self.seed), k=1)
+                weights = np.triu(np.random.normal(0.0, 0.1, size))#np.zeros((size)))  # orthogonal_init((1,size), seed=self.seed), k=1)
                 weights_intralayer_sequential_current.append(weights)
             weights_intralayer_sequential.append(weights_intralayer_sequential_current)
 
@@ -334,7 +334,7 @@ class Conv_Deep_QBM(MODEL):
         if not self.is_restricted:
             weights_intralayer_sequential_current = []
             for size in self.sequential_layer_sizes:
-                weights = np.triu(np.random.normal(0.0, 0.5, (size)))#np.zeros((size)))#orthogonal_init((1,size), seed=self.seed), k=1)
+                weights = np.triu(np.zeros((size)))#np.random.normal(0.0, 0.5, (size)))#np.zeros((size)))#orthogonal_init((1,size), seed=self.seed), k=1)
                 weights_intralayer_sequential_current.append(weights)
             weights_intralayer_sequential.append(weights_intralayer_sequential_current)
 
@@ -406,7 +406,7 @@ class Conv_Deep_QBM(MODEL):
 
         if self.kernel_size > 0:
             if self.hidden_bias_type == "shared":
-                biases_conv_units = np.random.logistic(0.0, 0.5, (self.num_filter_kernels, 1))
+                biases_conv_units = np.zeros((self.num_filter_kernels,1))#np.random.logistic(0.0, 0.5, (self.num_filter_kernels, 1))
             # for recurrent_layer in range(self.num_filter_kernels):
             #     # if self.hidden_bias_type == "shared":
             #     #     biases_conv_units.append(n[0.0])#np.random.normal(0.0, 0.01, 1))
@@ -424,7 +424,7 @@ class Conv_Deep_QBM(MODEL):
             else:
                 sequential_biases_current_recurrent = []
                 for size in self.sequential_layer_sizes:
-                    sequential_biases_current_recurrent.append(np.random.logistic(0.0, 0.5,  size))#np.full_like(np.zeros(size), 0.0))
+                    sequential_biases_current_recurrent.append(np.zeros(size))#np.random.logistic(0.0, 0.5,  size))
                 biases_sequential_units.append(sequential_biases_current_recurrent)
 
         else:

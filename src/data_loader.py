@@ -269,19 +269,19 @@ def get_NEU_CLS_64(file: str, classes: list[str] = None, num_samples_per_class=N
         y = np.concatenate(selected_y)
 
     #show sample image after resizing and original image 10 per class
-    import matplotlib.pyplot as plt
-    for i in range(1):
-        plt.subplot(1, 2, 1)
-        plt.imshow(x[50], cmap='gray')
-        plt.title('Resized Image')
-        plt.axis('off')
-        original_image_path = os.path.join(file, classes[y[1]], os.listdir(os.path.join(file, classes[y[1]]))[i])
-        with Image.open(original_image_path) as im:
-            plt.subplot(1, 2, 2)
-            plt.imshow(im, cmap='gray')
-            plt.title('Original Image')
-            plt.axis('off')
-        plt.show()
+    # import matplotlib.pyplot as plt
+    # for i in range(1):
+    #     plt.subplot(1, 2, 1)
+    #     plt.imshow(x[50], cmap='gray')
+    #     plt.title('Resized Image')
+    #     plt.axis('off')
+    #     original_image_path = os.path.join(file, classes[y[1]], os.listdir(os.path.join(file, classes[y[1]]))[i])
+    #     with Image.open(original_image_path) as im:
+    #         plt.subplot(1, 2, 2)
+    #         plt.imshow(im, cmap='gray')
+    #         plt.title('Original Image')
+    #         plt.axis('off')
+    #     plt.show()
 
     # split into train, test, val
     X_temp, X_test, y_temp, y_test = train_test_split(x, y, test_size=train_test_val_split[2], random_state=seed, shuffle=True)

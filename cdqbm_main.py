@@ -81,7 +81,7 @@ def main(seed=19, solver="SA", sample_count=100,
             test_x, test_y = val_x, val_y
 
     elif data_set == "NEU-CLS-64": # /home/s/seebode/BIG/
-        train_x, train_y, val_x, val_y, test_x, test_y = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
+        train_x, train_y, val_x, val_y, test_x, test_y = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
                                                                       classes=["gg", "rp"], seed=seed,
                                                                         image_size=(28, 28), contrast_factor=1.5)
         if test_on_val:
@@ -159,15 +159,15 @@ def main(seed=19, solver="SA", sample_count=100,
           f'  label nodes: {qbm.num_label_nodes}\n'
           f'  total hidden nodes: {qbm.num_hidden_nodes}\n'
           f'  num params: {qbm.count_parameters()}\n')
-    import matplotlib.pyplot as plt
-    # plot initial kernel
-    plt.figure()
-    for k in range(num_kernels):
-        plt.subplot(1, num_kernels, k+1)
-        plt.imshow(qbm.kernel_weights[k], cmap='gray')
-        plt.title(f'Initial Kernel {k+1}')
-        plt.axis('off')
-    plt.show()
+    # import matplotlib.pyplot as plt
+    # # plot initial kernel
+    # plt.figure()
+    # for k in range(num_kernels):
+    #     plt.subplot(1, num_kernels, k+1)
+    #     plt.imshow(qbm.kernel_weights[k], cmap='gray')
+    #     plt.title(f'Initial Kernel {k+1}')
+    #     plt.axis('off')
+    # plt.show()
 
 
 
@@ -182,25 +182,25 @@ def main(seed=19, solver="SA", sample_count=100,
     with open(save + f"auc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(auc_list, f)
 
-    import matplotlib.pyplot as plt
+    #import matplotlib.pyplot as plt
 
     # line plot of epochsloss
-    plt.figure()
-    plt.plot(range(len(epoch_loss_list)), epoch_loss_list)
-    plt.title('Training Loss per Epoch')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.grid()
-    plt.show()
-
-    # plot trained kernels
-    plt.figure()
-    for k in range(num_kernels):
-        plt.subplot(1, num_kernels, k+1)
-        plt.imshow(qbm.kernel_weights[k], cmap='gray')
-        plt.title(f'Trained Kernel {k+1}')
-        plt.axis('off')
-    plt.show()
+    # plt.figure()
+    # plt.plot(range(len(epoch_loss_list)), epoch_loss_list)
+    # plt.title('Training Loss per Epoch')
+    # plt.xlabel('Epoch')
+    # plt.ylabel('Loss')
+    # plt.grid()
+    # plt.show()
+    #
+    # # plot trained kernels
+    # plt.figure()
+    # for k in range(num_kernels):
+    #     plt.subplot(1, num_kernels, k+1)
+    #     plt.imshow(qbm.kernel_weights[k], cmap='gray')
+    #     plt.title(f'Trained Kernel {k+1}')
+    #     plt.axis('off')
+    # plt.show()
 
 
 
@@ -231,7 +231,7 @@ if __name__ == '__main__':
                         help='Restricted weights between hidden nodes')
 
     parser.add_argument('-e', '--epochs',
-                        default=5,
+                        default=20,
                         type=int,
                         help='Epochs for training')
 
@@ -241,12 +241,12 @@ if __name__ == '__main__':
                         help='Batchsize for training')
 
     parser.add_argument('-s', '--seed',
-                        default=8688,
+                        default=23094922,
                         type=int,
                         help='Seed for RNG')
 
     parser.add_argument('-sc', '--sample_count',
-                        default=10,
+                        default=100,
                         type=int,
                         help='Number of samples to take from the solver_backend (reads)')
 
@@ -261,7 +261,7 @@ if __name__ == '__main__':
                         help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system1.8')")
 
     parser.add_argument('--data_set',
-                        default='mnist',
+                        default='NEU-CLS-64',
                         type=str,
                         help="Dataset: 'mnist', 'breastmnist', 'pneumoniamnist', 'fashionmnist', 'cifar-10', 'miniimagenet', 'NEU-CLS-64'")
 
@@ -291,7 +291,7 @@ if __name__ == '__main__':
                         help='Size of the convolutional kernel')
 
     parser.add_argument('--num_kernels',
-                        default=1,
+                        default=5,
                         type=int,
                         help='number of convolutional kernels')
 

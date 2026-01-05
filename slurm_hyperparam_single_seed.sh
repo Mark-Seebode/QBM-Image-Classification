@@ -20,9 +20,10 @@ SAMPLE_COUNT=$4
 SEED=$5
 KERNEL_SIZE=$6
 NUM_KERNELS=$7
+RESTRICTED=$8
 #ANNEALING_STEPS=${8}
 # Collect remaining args (0–3 values) as list
-shift 7
+shift 8
 SEQ_SIZES=("$@")    # now SEQ_SIZES is an array of the remaining args
 
 
@@ -40,6 +41,7 @@ srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
     --save "out/slurm/" \
     --name "seed_$SEED"\
     --test_on_val "True" \
+    --restricted $RESTRICTED \
     --sequential_layer_sizes "${SEQ_SIZES[@]}" &
 
 echo -e "\tWaiting for Job completion."

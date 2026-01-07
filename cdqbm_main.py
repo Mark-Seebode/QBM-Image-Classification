@@ -246,7 +246,7 @@ if __name__ == '__main__':
                         help='Seed for RNG')
 
     parser.add_argument('-sc', '--sample_count',
-                        default=100,
+                        default=10,
                         type=int,
                         help='Number of samples to take from the solver_backend (reads)')
 

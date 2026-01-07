@@ -324,7 +324,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--one_hot',
                         default=
-                        True,
+                        False,
                         help='Use multi-node one-hot output (vs single-node binary)')
 
     parser.add_argument('--test_on_val',

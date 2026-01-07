@@ -8,7 +8,7 @@ import pickle
 #parser.add_argument("--description", type=str, default="No description")
 #args = parser.parse_args()
 
-name = 'CDQBM NEU-CLS-64 2 fixed'
+name = 'CDQBM NEU-CLS-64 2 binary encoding'
 
 sweep_configuration = {'name': name,
                        'description': 'First Whole Dataset run ',

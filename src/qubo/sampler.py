@@ -66,16 +66,16 @@ class LocalSASampler:
         bqm = _to_bqm(Q)
         if self.sa is None:
             tasks = [
-                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[0], self.seed),
-                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[1], self.seed),
-                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[2], self.seed),
-                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[3], self.seed),
-                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[4], self.seed),
-                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[5], self.seed),
-                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[6], self.seed),
-                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[7], self.seed),
-                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[8], self.seed),
-                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[9], self.seed),
+                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[0], self.seed + 0),
+                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[1], self.seed + 1),
+                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[2], self.seed + 2),
+                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[3], self.seed + 3),
+                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[4], self.seed + 4),
+                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[5], self.seed + 5),
+                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[6], self.seed + 6),
+                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[7], self.seed + 7),
+                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[8], self.seed + 8),
+                (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[9], self.seed + 9),
 
             ]
             # Use ProcessPoolExecutor to parallelize the sampling

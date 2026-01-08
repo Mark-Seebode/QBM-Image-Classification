@@ -87,12 +87,11 @@ def configure_hyperparams(run):
     global RESTRICTED
     global ANNEAL
     global SAMPLE_COUNT
-    SAMPLE_COUNT = 10
 
     if run:
 
         config_defaults = {'batch_size': args.batch_size,  'learning_rate': args.learning_rate, #'conv_learning_rate': args.conv_learning_rate,
-                            'kernel_size': args.kernel_size, 'num_kernels': args.num_kernels, 'restricted': args.restricted,
+                            'kernel_size': args.kernel_size, 'num_kernels': args.num_kernels, 'restricted': args.restricted, 'sample_count': args.sample_count,
                            'sequential_layer_sizes': args.sequential_layer_sizes,} #'is_recurrent_weights': args.is_recurrent_weights,'restricted': args.restricted,
                         #'anneal': args.anneal}
 
@@ -107,7 +106,7 @@ def configure_hyperparams(run):
         #IS_RECURRENT_WEIGHTS = wandb.config.is_recurrent_weights
         RESTRICTED = wandb.config.restricted
         #ANNEAL = wandb.config.anneal
-        #SAMPLE_COUNT = wandb.config.sample_count
+        SAMPLE_COUNT = wandb.config.sample_count
 
     else:
         # Set default hyperparameters
@@ -120,7 +119,7 @@ def configure_hyperparams(run):
         #IS_RECURRENT_WEIGHTS = args.is_recurrent_weights
         RESTRICTED = args.restricted
         #ANNEAL = args.anneal
-        #SAMPLE_COUNT = args.sample_count
+        SAMPLE_COUNT = args.sample_count
 
 
         return ("_b" + str(BATCH_SIZE) + "_l" + str(LEARNING_RATE))
@@ -352,7 +351,7 @@ if __name__ == '__main__':
                         default=1000,
                         type=int)
 
-    parser.add_argument('--sweep_id', type=str, default="b495kgyu") #v8vwy5dq breast mnistk3i5g39d current rbm penumonia estex4pi   current sq qbm xzvm3exu
+    parser.add_argument('--sweep_id', type=str, default="c3wgfdxe") #v8vwy5dq breast mnistk3i5g39d current rbm penumonia estex4pi   current sq qbm xzvm3exu
     parser.add_argument('--key', type=str, default=None)
 
     args = parser.parse_args()

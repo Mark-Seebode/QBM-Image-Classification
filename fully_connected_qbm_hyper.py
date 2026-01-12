@@ -160,7 +160,7 @@ def main(args, resume=False, resume_id=""):
         print(job_list)
         time.sleep(10)
         wait_for_slurm_jobs(job_list)
-        time.sleep(10)
+        time.sleep(30)
 
         print("All SLURM jobs completed. Collecting results.")
         for seed in seeds:

@@ -129,6 +129,12 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     # print("Precision: ", precision)
     # print("Recall: ", recall)
     # print("AUC Score: ", auc)
+    import pickle
+
+    with open(f"{save}acc_per_epoch{seed}.pkl", "wb") as f:
+        pickle.dump(dqbm.training_history.acc_per_epoch, f)
+    with open(f"{save}auc_per_epoch{seed}.pkl", "wb") as f:
+        pickle.dump(dqbm.training_history.auc_per_epoch, f)
 
 
 

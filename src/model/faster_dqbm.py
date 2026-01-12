@@ -1085,10 +1085,10 @@ class Disc_QBM():
         if self.solver_string == "SA":
             print(f"SA time used for one training run: {self.sa_time_used} microseconds")
 
-        with open(f"{save_folder}/acc_per_epoch{self.seed}.pkl", "wb") as f:
-            pickle.dump(self.training_history.acc_per_epoch, f)
-        with open(f"{save_folder}/auc_per_epoch{self.seed}.pkl", "wb") as f:
-            pickle.dump(self.training_history.auc_per_epoch, f)
+        # with open(f"{save_folder}/acc_per_epoch{self.seed}.pkl", "wb") as f:
+        #     pickle.dump(self.training_history.acc_per_epoch, f)
+        # with open(f"{save_folder}/auc_per_epoch{self.seed}.pkl", "wb") as f:
+        #     pickle.dump(self.training_history.auc_per_epoch, f)
 
 
         #

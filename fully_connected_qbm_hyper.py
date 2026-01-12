@@ -152,7 +152,7 @@ def main(args, resume=False, resume_id=""):
             'auc_val': [],
         })
 
-
+        time.sleep(10)
         print("Submitting SLURM jobs for all seeds")
         for seed in seeds:
             job_id = run_slurm_with_hyperparams(LEARNING_RATE, N_HIDDEN_NODES, BATCH_SIZE, SAMPLE_COUNT, seed)#, ANNEAL)#RESTRICTED, ANNEAL)

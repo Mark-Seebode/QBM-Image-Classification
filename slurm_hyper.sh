@@ -18,7 +18,7 @@ source venv/bin/activate && echo "venv loaded"
 
 
 echo "Dispatching job"
-srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 slurm_hyperparam.py --path "out/slurm/"
+srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 fully_connected_qbm_hyper.py --path "out/slurm/"
 
 echo -e "\tWaiting for Job completion."
 wait

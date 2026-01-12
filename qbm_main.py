@@ -45,8 +45,8 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
         train_X, train_y = data_loader.get_cifar10_from_torch([3,5], samples_per_class=200, train=True)
         test_X, test_y = data_loader.get_cifar10_from_torch([3,5], samples_per_class=50, train=False)
     elif data_set == "NEU-CLS-64":
-        train_X, train_y,  val_X, val_y, test_X, test_y = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
-                                                                      classes=["gg", "rp"], seed=seed, image_size=(28, 28))
+        train_X, train_y,  val_X, val_y, test_X, test_y = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
+                                                                      classes=["gg", "rp"], seed=seed, image_size=(28, 28), contrast_factor=1.5)
         test_X = val_X
         test_y = val_y
     else:
@@ -77,12 +77,12 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     dqbm.train_model(train_X, train_y, test_X, test_y, batch_size=batch_size, learning_rate=learning_rate)
     print('QBM trained')
 
-    print("Predict on test data...")
-    predictions = []
-    #samples_output_list = []
-    for i in tqdm(range(len(test_X)), desc="Predicting on test data", ncols=80, leave=False):
-       p, samples_output = dqbm.predict(test_X[i])
-       predictions.append(p)
+    # print("Predict on test data...")
+    # predictions = []
+    # #samples_output_list = []
+    # for i in tqdm(range(len(test_X)), desc="Predicting on test data", ncols=80, leave=False):
+    #    p, samples_output = dqbm.predict(test_X[i])
+    #    predictions.append(p)
         # for sample in samples_output:
         #     samples_output_list.append(sample)
 
@@ -111,11 +111,11 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     #                                    "Distribution of Test Data", all_possible_patterns, True)
     #
 
-    acc, f1, precision, recall, auc = metrics.save_result(save + name, dqbm,
-                                                          dqbm.training_history, dqbm.weight_objects,
-                                                          test_y, predictions, ["healthy", "pneumonia"],
-                                                          batch_size, epochs, solver, learning_rate, show_plot=True,
-                                                          save=False)
+    # acc, f1, precision, recall, auc = metrics.save_result(save + name, dqbm,
+    #                                                       dqbm.training_history, dqbm.weight_objects,
+    #                                                       test_y, predictions, ["healthy", "pneumonia"],
+    #                                                       batch_size, epochs, solver, learning_rate, show_plot=True,
+    #                                                       save=False)
 
     # acc, f1, precision, recall, auc = metrics.save_result(save + name, dqbm,
     #                                                       dqbm.training_history, dqbm.weight_objects,
@@ -124,11 +124,11 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     #                                                       save=False)
 
 
-    print("Accuracy: ", acc)
-    print("F1 Score: ", f1)
-    print("Precision: ", precision)
-    print("Recall: ", recall)
-    print("AUC Score: ", auc)
+    # print("Accuracy: ", acc)
+    # print("F1 Score: ", f1)
+    # print("Precision: ", precision)
+    # print("Recall: ", recall)
+    # print("AUC Score: ", auc)
 
 
 
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--epochs',
                         metavar='INT',
                         help='Epochs fr training',
-                        default=5,
+                        default=20,
                         type=int)
 
     parser.add_argument('-b', '--batch_size',
@@ -191,7 +191,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--data_set',
                         help='Dataset to use, options: \'mnist\', \'breastmnist\', \'pneumoniamnist\', \'fashionmnist\'',
-                        default='mnist',
+                        default='NEU-CLS-64',
                         type=str)
 
     parser.add_argument('--num_classes',
@@ -207,7 +207,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--load_path',
                         help='Filepath to numpy file with saved weights to initialize from',
-                        default="out/",
+                        default="out/slurm/",
                         type=str)
 
     parser.add_argument('--name',

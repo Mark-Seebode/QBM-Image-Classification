@@ -579,16 +579,16 @@ class Disc_QBM():
             qubo_as_bqm = di.BQM(qubo_matrix, "BINARY")
             if self.parallelize and self.use_old_parallization:
                 tasks = [
-                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_0, self.seed),
-                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_1, self.seed),
-                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_2, self.seed),
-                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_3, self.seed),
-                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_4, self.seed),
-                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_5, self.seed),
-                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_6, self.seed),
-                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_7, self.seed),
-                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_8, self.seed),
-                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_9, self.seed),
+                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_0, self.seed + 0),
+                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_1, self.seed + 1),
+                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_2, self.seed + 2),
+                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_3, self.seed + 3),
+                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_4, self.seed + 4),
+                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_5, self.seed + 5),
+                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_6, self.seed + 6),
+                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_7, self.seed + 7),
+                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_8, self.seed + 8),
+                    (qubo_as_bqm, label, int(self.sample_count / 10), self.anneal_steps, self.sampler_9, self.seed + 9),
 
                 ]
                 # Use ProcessPoolExecutor to parallelize the sampling
@@ -596,27 +596,6 @@ class Disc_QBM():
                 samples = []
                 for future in futures:
                     samples.extend(future.result())
-            elif self.parallelize and not self.use_old_parallization:
-                num_tasks = int(self.sample_count / 8)
-                rest_of_tasks = self.sample_count % 8
-                tasks = [
-                    (qubo_matrix, label, num_tasks, self.anneal_steps, self.sampler, self.seed),
-                    (qubo_matrix, label, num_tasks, self.anneal_steps, self.sampler, self.seed),
-                    (qubo_matrix, label, num_tasks, self.anneal_steps, self.sampler, self.seed),
-                    (qubo_matrix, label, num_tasks, self.anneal_steps, self.sampler, self.seed),
-                    (qubo_matrix, label, num_tasks, self.anneal_steps, self.sampler, self.seed),
-                    (qubo_matrix, label, num_tasks, self.anneal_steps, self.sampler, self.seed),
-                    (qubo_matrix, label, num_tasks, self.anneal_steps, self.sampler, self.seed),
-                    (qubo_matrix, label, num_tasks, self.anneal_steps, self.sampler, self.seed),
-                    (qubo_matrix, label, rest_of_tasks, self.anneal_steps, self.sampler, self.seed),
-
-                ]
-
-                futures = [self.executor.submit(self.parallel_sa_sample, task) for task in tasks]
-                samples = []
-                for future in futures:
-                    samples.extend(future.result())
-
             else:
                 qubo_as_bqm = di.BQM(qubo_matrix, "BINARY")
                 #print(qubo_as_bqm)
@@ -1126,19 +1105,18 @@ class Disc_QBM():
             pickle.dump(self.training_history.acc_per_epoch, f)
         with open(f"{save_folder}/auc_per_epoch{self.seed}.pkl", "wb") as f:
             pickle.dump(self.training_history.auc_per_epoch, f)
-        with open(f"{save_folder}/combined_acc_auc_per_epoch{self.seed}.pkl", "wb") as f:
-            pickle.dump(self.training_history.combined_acc_auc_per_epoch, f)
 
 
-        import matplotlib.pyplot as plt
-        # plot weights_visible_to_hidden weight change
-        plt.figure()
-        plt.plot(weight_change_list)
-        plt.xlabel("Epoch")
-        plt.ylabel("Weight Change (Frobenius Norm)")
-        plt.title("Change in Visible-to-Hidden Weights Over Training")
-        plt.grid()
-        plt.show()
+        #
+        # import matplotlib.pyplot as plt
+        # # plot weights_visible_to_hidden weight change
+        # plt.figure()
+        # plt.plot(weight_change_list)
+        # plt.xlabel("Epoch")
+        # plt.ylabel("Weight Change (Frobenius Norm)")
+        # plt.title("Change in Visible-to-Hidden Weights Over Training")
+        # plt.grid()
+        # plt.show()
 
 
 

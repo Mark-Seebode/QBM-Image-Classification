@@ -1002,7 +1002,7 @@ class Disc_QBM():
         #sorted_probs_list = []
         # random data point just to get embedding
 
-        save_folder = self.speicherort + self.param_string
+        save_folder = self.speicherort
         os.makedirs(save_folder, exist_ok=True)
         print("Training with \n"
               f"batch size: {batch_size}\n",

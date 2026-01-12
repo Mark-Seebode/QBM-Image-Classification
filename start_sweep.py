@@ -27,7 +27,7 @@ sweep_configuration = {'name': name,
                                       #'restricted': {'values': [True, False]},
                                       'learning_rate': {'max': 0.5, 'min': 0.0005},
                                       #'conv_learning_rate': {'max': 0.5, 'min': 0.0005},
-                                      'sample_count': {'values': list(range(10, 1000, 10))},
+                                      'sample_count': {'values': list(range(10, 1010, 10))},
                                       #'anneal': {'values': [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000]},
                                       },
                        'early_terminate': {'type': 'hyperband', 'min_iter': 4}

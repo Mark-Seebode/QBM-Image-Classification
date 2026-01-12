@@ -696,50 +696,34 @@ class Disc_QBM():
             avgs_biases_hidden += avgs_biases[self.n_output_nodes:] if is_unclamped else avgs_biases
             avgs_biases_output += avgs_biases[:self.n_output_nodes] if is_unclamped else label
 
-            if is_unclamped:
-                visible_vector = input_vector
-                n_visible_nodes = self.dim_input
-            else:
-                visible_vector = np.concatenate((label, input_vector))
-                n_visible_nodes = self.n_output_nodes + self.dim_input
+            for h in range(self.n_hidden_nodes):
+                # input to hidden connections
+                for v in range(self.dim_input):
+                    if not is_unclamped:  # clamped
+                        x, y = input_vector[v], np_samples[:, h]
+                    else:
+                        x, y = input_vector[v], np_samples[:, self.n_output_nodes + h]
+                    avgs_weights_visible_to_hidden[self.n_output_nodes + v, h] += x @ y.mean(axis=0,keepdims=True)
 
-            # for h in range(self.n_hidden_nodes):
-            #     # visible to hidden connections
-            #     for v in range(n_visible_nodes):
-            #         if not is_unclamped:
-            #             x, y = visible_vector[v], np_samples[:, h]
-            #             avgs_weights_visible_to_hidden[v, h] += np.average(x * y)
-            #         else:
-            #             x, y = visible_vector[v], np_samples[:, self.n_output_nodes + h]
-            #             avgs_weights_visible_to_hidden[self.n_output_nodes + v, h] += np.average(x * y)
 
-                if is_unclamped:
-                    y = np_samples[:, self.n_output_nodes:]  # (n_samples, n_hidden_nodes)
-                    x = visible_vector.reshape(-1, 1)  # (n_visible_nodes, 1)
-                    avgs_weights_visible_to_hidden[self.n_output_nodes:, :] += x @ y.mean(axis=0,
-                                                                                                   keepdims=True)  # (n_visible_nodes, n_hidden_nodes)
-
-                else:
-                    y = np_samples[:, :]
-                    x = visible_vector.reshape(-1, 1)  # (n_visible_nodes, 1)
-                    avgs_weights_visible_to_hidden += x @ y.mean(axis=0,
-                                                                 keepdims=True)  # (n_visible_nodes, n_hidden_nodes)
-
-            # output to hidden connections unclamped
-            if is_unclamped:
-                for h in range(self.n_hidden_nodes):
-                    for o in range(self.n_output_nodes):
+            # label to hidden connections unclamped
+            for h in range(self.n_hidden_nodes):
+                for o in range(self.n_output_nodes):
+                    if is_unclamped:
                         x, y = np_samples[:, o], np_samples[:, self.n_output_nodes + h]
-                        avgs_weights_visible_to_hidden[o:, h] += np.average(x * y)
+                    else:
+                        x, y = label[o], np_samples[:, h]
+                    avgs_weights_visible_to_hidden[o, h] += np.average(x * y)
 
-
-
-            for v in range(self.dim_input):
-                # visible to output connections
+            for v in range(self.n_output_nodes):
+                # input to label connections
                 for out in range(self.n_output_nodes):
-                    x, y = (input_vector[v], np_samples[:, out]) if is_unclamped else (
-                        input_vector[v], label[out])
-                    avgs_weights_visible_to_output[v, out] += np.average(x * y)
+                    x, y = (
+                        (input_vector[v], np_samples[:, out])
+                        if is_unclamped
+                        else (input_vector[v], label[out])
+                    )
+                    avgs_weights_visible_to_output[v, out] = np.average(x * y)
 
             for o in range(self.n_output_nodes):
                 # output to output connections

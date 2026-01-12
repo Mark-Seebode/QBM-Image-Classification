@@ -1053,8 +1053,8 @@ class Disc_QBM():
                         f'e{epoch}_b{batchnum}_{self.param_string}', save_folder)
                     metrics.save_history(f"{save_folder}/", self.training_history)
                     raise e
-            self.save_weights(
-                f'e{epoch}_{self.param_string}', save_folder)
+            #self.save_weights(
+            #    f'e{epoch}_{self.param_string}', save_folder)
             val_predictions = []
             for val_x in tqdm(val_X, desc="predict validation set", ncols=80, leave=False):
                 prediction, _ = self.predict(val_x)

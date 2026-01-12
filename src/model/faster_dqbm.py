@@ -703,7 +703,7 @@ class Disc_QBM():
                         x, y = input_vector[v], np_samples[:, h]
                     else:
                         x, y = input_vector[v], np_samples[:, self.n_output_nodes + h]
-                    avgs_weights_visible_to_hidden[self.n_output_nodes + v, h] += x @ y.mean(axis=0,keepdims=True)
+                    avgs_weights_visible_to_hidden[self.n_output_nodes + v, h] += x * y.mean(axis=0,keepdims=True)
 
 
             # label to hidden connections unclamped

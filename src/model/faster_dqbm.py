@@ -703,7 +703,7 @@ class Disc_QBM():
                         x, y = input_vector[v], np_samples[:, h]
                     else:
                         x, y = input_vector[v], np_samples[:, self.n_output_nodes + h]
-                    avgs_weights_visible_to_hidden[self.n_output_nodes + v, h] += x * y.mean(axis=0,keepdims=True)
+                    avgs_weights_visible_to_hidden[self.n_output_nodes + v, h] += np.average(x * y)#x * y.mean(axis=0,keepdims=True)
 
 
             # label to hidden connections unclamped
@@ -1021,6 +1021,8 @@ class Disc_QBM():
             # batches = list(batches)
             # num_batches = len(batches)
             num_batches = len(train_X) // batch_size
+            if num_batches == 0:
+                num_batches = 1
             epoch_errors = 0
             epoch_nll = 0
             nll = torch.nn.NLLLoss()

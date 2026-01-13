@@ -37,7 +37,9 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     elif data_set == "breastmnist":
         (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('src/data/medmnist/breastmnist.npz')
     elif data_set == "pneumoniamnist":
-        (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('src/data/medmnist/pneumoniamnist.npz')
+        (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('/home/s/seebode/BIG/data/medmnist/pneumoniamnist.npz')
+        test_X = val_X
+        test_y = val_y
     elif data_set == "fashionmnist":
         train_X, train_y = data_loader.get_fashionmnist('src/data/fashionmnist/train-images-idx3-ubyte', 'src/data/fashionmnist/train-labels-idx1-ubyte', classes=[0, 1])
         test_X, test_y = data_loader.get_fashionmnist('src/data/fashionmnist/t10k-images-idx3-ubyte', 'src/data/fashionmnist/t10k-labels-idx1-ubyte', classes=[0, 1])
@@ -45,7 +47,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
         train_X, train_y = data_loader.get_cifar10_from_torch([3,5], samples_per_class=200, train=True)
         test_X, test_y = data_loader.get_cifar10_from_torch([3,5], samples_per_class=50, train=False)
     elif data_set == "NEU-CLS-64":
-        train_X, train_y,  val_X, val_y, test_X, test_y = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
+        train_X, train_y,  val_X, val_y, test_X, test_y = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
                                                                       classes=["gg", "rp"], seed=seed, image_size=(28, 28), contrast_factor=1.5)
         test_X = val_X
         test_y = val_y
@@ -55,6 +57,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
 
     print("Preprocessing data...")
     train_X, test_X, val_X, = data_loader.flatten_images(train_X, test_X)
+    train_X, train_y = data_loader.shuffle_images(train_X, train_y, seed)
 
     #train_y = data_loader.encode_labels_to_onehot(train_y, num_classes)
     print("Data preprocessed")
@@ -77,12 +80,12 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     dqbm.train_model(train_X, train_y, test_X, test_y, batch_size=batch_size, learning_rate=learning_rate)
     print('QBM trained')
 
-    # print("Predict on test data...")
-    # predictions = []
-    # #samples_output_list = []
-    # for i in tqdm(range(len(test_X)), desc="Predicting on test data", ncols=80, leave=False):
-    #    p, samples_output = dqbm.predict(test_X[i])
-    #    predictions.append(p)
+    print("Predict on test data...")
+    predictions = []
+    #samples_output_list = []
+    for i in tqdm(range(len(test_X)), desc="Predicting on test data", ncols=80, leave=False):
+       p, samples_output = dqbm.predict(test_X[i])
+       predictions.append(p)
         # for sample in samples_output:
         #     samples_output_list.append(sample)
 
@@ -151,7 +154,7 @@ if __name__ == '__main__':
     parser.add_argument('-hn', '--hnodes',
                         metavar='INT',
                         help='Amount of hidden units for QBM model',
-                        default=5,
+                        default=10,
                         type=int)
 
     parser.add_argument('-lr', '--learning_rate',
@@ -174,7 +177,7 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--batch_size',
                         metavar='INT',
                         help='Batchsize for training',
-                        default=8,
+                        default=100,
                         type=int)
 
     parser.add_argument('-s', '--seed',
@@ -197,7 +200,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--data_set',
                         help='Dataset to use, options: \'mnist\', \'breastmnist\', \'pneumoniamnist\', \'fashionmnist\'',
-                        default='NEU-CLS-64',
+                        default='pneumoniamnist',
                         type=str)
 
     parser.add_argument('--num_classes',

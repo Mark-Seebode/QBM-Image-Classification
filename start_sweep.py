@@ -8,7 +8,7 @@ import pickle
 #parser.add_argument("--description", type=str, default="No description")
 #args = parser.parse_args()
 
-name = 'fully connected Pneumonia'
+name = 'Pneumonia Fully Connected 10h'
 
 sweep_configuration = {'name': name,
                        'description': 'binary decoding 2 classes',
@@ -18,16 +18,16 @@ sweep_configuration = {'name': name,
                        'parameters': {'batch_size': {'values': [2**1, 2**2, 2**3, 2**4, 2**5, 2**6, 2**7, 2**8, 2**9]},
                                       #'kernel_size': {'values': [3, 5]},
                                       #'num_kernels': {'values': [1, 2, 3, 4, 5]},
-                                      #'sequential_layer_sizes': {'values': [[24, 16, 8], [24, 16, 4], [24, 8, 4],
+                                      # 'sequential_layer_sizes': {'values': [[24, 16, 8], [24, 16, 4], [24, 8, 4],
                                       #                                      [16, 8, 4], [24, 16], [24, 8], [24, 4],
-                                       #                                     [16, 8], [16, 4], [8, 4], [24], [16], [8],
+                                      #                                      [16, 8], [16, 4], [8, 4], [24], [16], [8],
                                       #                                      [4]]},
-                                      'n_hidden_nodes': {'values': [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]},
+                                      #'n_hidden_nodes': {'values': [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]},
                                       #'is_recurrent_weights': {'values': [True, False]},
                                       #'restricted': {'values': [True, False]},
-                                      'learning_rate': {'max': 0.5, 'min': 0.0005},
+                                      'learning_rate': {'max': 0.05, 'min': 0.0005},
                                       #'conv_learning_rate': {'max': 0.5, 'min': 0.0005},
-                                      'sample_count': {'values': list(range(10, 510, 10))},
+                                      'sample_count': {'values': list(range(10, 210, 10))},
                                       #'anneal': {'values': [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000]},
                                       },
                        'early_terminate': {'type': 'hyperband', 'min_iter': 4}

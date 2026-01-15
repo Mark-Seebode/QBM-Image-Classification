@@ -38,8 +38,6 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
         (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('src/data/medmnist/breastmnist.npz')
     elif data_set == "pneumoniamnist":
         (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('/home/s/seebode/BIG/data/medmnist/pneumoniamnist.npz')
-        test_X = val_X
-        test_y = val_y
     elif data_set == "fashionmnist":
         train_X, train_y = data_loader.get_fashionmnist('src/data/fashionmnist/train-images-idx3-ubyte', 'src/data/fashionmnist/train-labels-idx1-ubyte', classes=[0, 1])
         test_X, test_y = data_loader.get_fashionmnist('src/data/fashionmnist/t10k-images-idx3-ubyte', 'src/data/fashionmnist/t10k-labels-idx1-ubyte', classes=[0, 1])
@@ -189,7 +187,7 @@ if __name__ == '__main__':
                         metavar='INT',
                         help='number of samples to take from the solver_backend, always in steps of 10:' +
                             "\'10\', \'20\', \'30\', \'40\', ..., \'1000\'",
-                        default=10,
+                        default=500,
                         type=int)
 
     parser.add_argument('--solver',

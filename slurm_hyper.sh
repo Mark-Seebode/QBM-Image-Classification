@@ -3,7 +3,7 @@
 #SBATCH --comment="breast mnist hyperparameter search"
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=m.seebode@campus.lmu.de
-#SBATCH --partition=All
+#SBATCH --partition=Krater
 #SBATCH --nodes=1
 #SBATCH -n 1
 

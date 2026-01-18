@@ -21,6 +21,7 @@ from matplotlib import pyplot as plt
 from dwave.cloud import Client
 from dwave.embedding import embed_bqm, unembed_sampleset, EmbeddedStructure
 import dwave.embedding as dwave_embedding
+from sklearn.metrics import roc_auc_score
 from tensorflow.python.ops.initializers_ns import identity
 
 import src.embedding as emb
@@ -703,7 +704,7 @@ class Disc_QBM():
                         x, y = input_vector[v], np_samples[:, h]
                     else:
                         x, y = input_vector[v], np_samples[:, self.n_output_nodes + h]
-                    avgs_weights_visible_to_hidden[self.n_output_nodes + v, h] += np.average(x * y)#x * y.mean(axis=0,keepdims=True)
+                    avgs_weights_visible_to_hidden[self.n_output_nodes + v, h] +=  x * y.mean(axis=0,keepdims=True)#np.average(x * y)#x * y.mean(axis=0,keepdims=True)
 
 
             # label to hidden connections unclamped
@@ -715,7 +716,7 @@ class Disc_QBM():
                         x, y = label[o], np_samples[:, h]
                     avgs_weights_visible_to_hidden[o, h] += np.average(x * y)
 
-            for v in range(self.n_output_nodes):
+            for v in range(self.dim_input):
                 # input to label connections
                 for out in range(self.n_output_nodes):
                     x, y = (
@@ -1058,11 +1059,19 @@ class Disc_QBM():
             #self.save_weights(
             #    f'e{epoch}_{self.param_string}', save_folder)
             val_predictions = []
-            for val_x in tqdm(val_X, desc="predict validation set", ncols=80, leave=False):
-                prediction, _ = self.predict(val_x)
+            all_targets = []
+            all_scores = []
+            for i, val_x in enumerate(tqdm(val_X, desc="predict validation set", ncols=80, leave=False)):
+                prediction, _, probs = self.predict(val_x)
+                all_targets.append(int(val_Y[i]))
                 val_predictions.append(prediction)
+                all_scores.append(float(probs[1]))  # P(y=1)
 
-            acc, _, _, _, auc = metrics.get_metrics(val_Y, val_predictions, ["0", "1"])
+            acc, _, _, _, _ = metrics.get_metrics(val_Y, val_predictions, ["0", "1"])
+            y_true = np.array(all_targets)
+            y_score = np.array(all_scores)
+            auc = roc_auc_score(y_true, y_score)
+
             combined_acc_auc = 0.5*acc + 0.5*auc
             self.training_history.acc_per_epoch.append(acc)
             self.training_history.auc_per_epoch.append(auc)
@@ -1178,7 +1187,11 @@ class Disc_QBM():
         if self.use_one_hot_encoding:
             return one_hot, samples_of_output.tolist()
         else:
-            return rounded_output[0], samples_of_output.flatten()
+            p1 = float(average_output[0])
+            p1 = min(max(p1, 1e-12), 1 - 1e-12)
+            probs = np.array([1.0 - p1, p1], dtype=np.float32)
+            pred = int(p1 >= 0.5)
+            return pred, samples_of_output.flatten(), probs
 
     def get_result_distribution(self, samples_of_output_list, all_possible_patterns):
 

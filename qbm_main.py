@@ -81,9 +81,9 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     print("Predict on test data...")
     predictions = []
     #samples_output_list = []
-    for i in tqdm(range(len(test_X)), desc="Predicting on test data", ncols=80, leave=False):
-       p, samples_output = dqbm.predict(test_X[i])
-       predictions.append(p)
+    # for i in tqdm(range(len(test_X)), desc="Predicting on test data", ncols=80, leave=False):
+    #    p, samples_output,_ = dqbm.predict(test_X[i])
+    #    predictions.append(p)
         # for sample in samples_output:
         #     samples_output_list.append(sample)
 
@@ -136,6 +136,9 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
         pickle.dump(dqbm.training_history.acc_per_epoch, f)
     with open(f"{save}auc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(dqbm.training_history.auc_per_epoch, f)
+
+    print("acc_per_epoch:", dqbm.training_history.acc_per_epoch)
+    print("auc_per_epoch:", dqbm.training_history.auc_per_epoch)
 
 
 

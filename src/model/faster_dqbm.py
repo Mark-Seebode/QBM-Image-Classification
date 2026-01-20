@@ -72,7 +72,7 @@ class Disc_QBM():
 
         self.restricted = restricted
         self.parallelize = parallelize
-        with open("src/secrets/TOKEN.txt", "r") as f:
+        with open("src/secrets/dwave_key.txt", "r") as f:
             TOKEN = f.read().strip()
         print(TOKEN)
         self.TOKEN = TOKEN

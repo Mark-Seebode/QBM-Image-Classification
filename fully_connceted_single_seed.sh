@@ -28,7 +28,7 @@ srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 qbm_main.py \
     --learning_rate $LEARNING_RATE \
     --batch_size $BATCH_SIZE \
     --sample_count $SAMPLE_COUNT \
-    --load_path "out/slurm/" \
+    --load_path "out/Pneumonia_again/quantum/" \
     --name "seed_$SEED"&
 
 echo -e "\tWaiting for Job completion."

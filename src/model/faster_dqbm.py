@@ -327,6 +327,7 @@ class Disc_QBM():
         try:
             sampleset = self.solver.sample_bqm(bqm, answer_mode='raw', num_reads=10).sampleset
             self.qpu_time_used += sampleset.info['timing']['qpu_access_time']
+            #print("QPU time used: ", self.qpu_time_used)
 
         except (
                 ConnectionError, ConnectionResetError, ConnectionAbortedError,

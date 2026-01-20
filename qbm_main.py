@@ -37,7 +37,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     elif data_set == "breastmnist":
         (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('src/data/medmnist/breastmnist.npz')
     elif data_set == "pneumoniamnist":
-        (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('/home/s/seebode/BIG/data/medmnist/pneumoniamnist.npz')
+        (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('src/data/medmnist/pneumoniamnist.npz')
     elif data_set == "fashionmnist":
         train_X, train_y = data_loader.get_fashionmnist('src/data/fashionmnist/train-images-idx3-ubyte', 'src/data/fashionmnist/train-labels-idx1-ubyte', classes=[0, 1])
         test_X, test_y = data_loader.get_fashionmnist('src/data/fashionmnist/t10k-images-idx3-ubyte', 'src/data/fashionmnist/t10k-labels-idx1-ubyte', classes=[0, 1])
@@ -136,9 +136,12 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
         pickle.dump(dqbm.training_history.acc_per_epoch, f)
     with open(f"{save}auc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(dqbm.training_history.auc_per_epoch, f)
+    with open(f"{save}nll_per_epoch{seed}.pkl", "wb") as f:
+        pickle.dump(dqbm.training_history.nll_per_epoch, f)
 
     print("acc_per_epoch:", dqbm.training_history.acc_per_epoch)
     print("auc_per_epoch:", dqbm.training_history.auc_per_epoch)
+    print("QPU time total:", dqbm.qpu_time_used)
 
 
 
@@ -161,7 +164,7 @@ if __name__ == '__main__':
     parser.add_argument('-lr', '--learning_rate',
                         metavar='FLOAT',
                         help='Learning rate for training',
-                        default=0.1,
+                        default=0.4529451796571889,
                         type=float)
 
     parser.add_argument('-r', '--restricted',
@@ -178,25 +181,25 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--batch_size',
                         metavar='INT',
                         help='Batchsize for training',
-                        default=100,
+                        default=73,
                         type=int)
 
     parser.add_argument('-s', '--seed',
                         metavar='INT',
                         help='Seed for RNG',
-                        default=3492574,
+                        default=1967690937, # [1967690937, 2286980494, 3620295971, 1662044193, 1825595160, 3054779705, 900327972, 1620954898,3699850877, 3492574433]
                         type=int)
     parser.add_argument('-sc', '--sample_count',
                         metavar='INT',
                         help='number of samples to take from the solver_backend, always in steps of 10:' +
                             "\'10\', \'20\', \'30\', \'40\', ..., \'1000\'",
-                        default=500,
+                        default=100,
                         type=int)
 
     parser.add_argument('--solver',
                         help='Solver, options: \'SA\', \'DW_2000Q_6\', \'Advantage_system4.1\', \'FujitsuDAU\', '
                              '\'MyQLM\', \'BMS\'',
-                        default='SA',
+                        default='Advantage_system4.1',
                         type=str)
 
     parser.add_argument('--data_set',
@@ -217,7 +220,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--load_path',
                         help='Filepath to numpy file with saved weights to initialize from',
-                        default="out/slurm/",
+                        default="out/Pneumonia_again/quantum/",
                         type=str)
 
     parser.add_argument('--name',

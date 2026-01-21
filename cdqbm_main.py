@@ -173,7 +173,7 @@ def main(seed=19, solver="SA", sample_count=100,
 
     print('Training QBM...')
     epoch_loss_list, acc_list, auc_list, kernel_change_history = train_model(qbm, train_x, train_y, batch_size, epochs, learning_rate, sample_count, beta_eff, conv_learning_rate=conv_learning_rate, one_hot=one_hot, test_x=test_x, test_y=test_y)
-    #qbm.save_weights()
+    #qbm.save_weights(title="for_QA_test")
     print('QBM trained')
 
     with open(save + f"acc_per_epoch{seed}.pkl", "wb") as f:
@@ -181,6 +181,9 @@ def main(seed=19, solver="SA", sample_count=100,
 
     with open(save + f"auc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(auc_list, f)
+
+    print("accuracy per epoch:", acc_list)
+    print("auc per epoch:", auc_list)
 
     #import matplotlib.pyplot as plt
 

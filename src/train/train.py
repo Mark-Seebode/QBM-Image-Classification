@@ -359,7 +359,6 @@ def update_biases_with_centers(model:Conv_Deep_QBM, all_samples_c, uses_one_hot:
                 for i, last_sl in enumerate(model.slices.last_hidden):
                     W_next = model.weights_hidden_to_output[i]
                     model.biases_sequential_units[0][idx] += v * W_next @ (mean_out - model.center_out)
-        pass
 
 
 
@@ -547,7 +546,6 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
                 conv_sl = model.slices.conv[fk]
                 for local_i in range(conv_sl.stop - conv_sl.start):
                     global_i = conv_sl.start + local_i
-                    Eh = float(sample_matrix[:, global_i].mean())
                     rows, cols = model.input_groups[local_i]
                     patch = x_input[np.ix_(rows, cols)]
                     global_i = conv_sl.start + local_i
@@ -790,7 +788,7 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
 
         if model.num_label_nodes == 1 or model.num_label_nodes == 2:
             pos_scores = np.array([p[1] for p in probs_all])
-            auc = roc_auc_score(test_y, predictions)
+            auc = roc_auc_score(test_y, pos_scores)
         else:
             # macro-average AUC with one-vs-rest
             from sklearn.preprocessing import label_binarize

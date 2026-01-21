@@ -80,7 +80,6 @@ def add_seq_weights(model, Q):
             for fk in range(model.num_filter_kernels):
                 pool_sl = model.slices.pool[fk]
                 W = model.weights_sequential_layer[0][fk]
-                plpl = Q[pool_sl, first_seq_sl]
                 Q[pool_sl, first_seq_sl] += W
 
             for i, cur_sl in enumerate(model.slices.seq_layers[0][1:]):
@@ -105,6 +104,8 @@ def add_seq_biases(model, Q):
     for l, seq_layer in enumerate(model.slices.seq_layers):
         for s, sl in enumerate(seq_layer):
             Q[sl, sl] += np.diag(model.biases_sequential_units[l][s])
+
+    #Q = add_seq_biases_with_virtual_carry(model, Q, lam=1.0, agg_kernels="mean", use_abs=False)
     return Q
 
 
@@ -147,9 +148,12 @@ def build_unclamped_qubo(model: Conv_Deep_QBM, ctx, beta_eff: float, do_conv_lab
     # Sequential
     if len(model.sequential_layer_sizes) > 0:
         Q = add_seq_weights(model, Q)
+        #Q = add_residual_skip_connections(model, Q, lam=1.0, mode="tied", normalize=False, use_abs=False)
         # Hidden biases sequential
         Q = add_seq_biases(model, Q)
     # Hidden -> Output
+    #Q = add_skip_penultimate_to_output(model, Q, lam=1.0, normalize=False, use_abs=False)
+    #Q = add_residual_skips_from_output(model, Q, lam=1.0, mode="tied", normalize=False, use_abs=False)
     Q = add_weights_hidden_to_output(model, Q, ctx)
 
     # output
@@ -185,8 +189,12 @@ def build_clamped_qubo(model, ctx, label_vec: np.ndarray, beta_eff: float, do_co
     # Sequential
     if len(model.sequential_layer_sizes) > 0:
         Q = add_seq_weights(model, Q)
+        #Q = add_residual_skip_connections(model, Q, lam=1.0, mode="tied", normalize=False, use_abs=False)
         # Hidden biases sequential
         Q = add_seq_biases(model, Q)
+
+    #Q = add_skip_penultimate_to_output(model, Q, lam=1.0, normalize=False, use_abs=False)
+    #Q = add_residual_skips_from_output(model, Q, lam=1.0, mode="tied", normalize=False, use_abs=False)
 
     # label bias
     for idx, last_sl in enumerate(model.slices.last_hidden):
@@ -288,4 +296,489 @@ def add_link_penalty_upper(model, qubo: np.ndarray, ctx, penalty_B: float):
         qubo[lo, hi] += 2.0 * B
 
     return qubo
+
+
+import numpy as np
+
+def zero_structure_like(obj):
+    """Recursively mirror `obj` structure, replacing ndarrays with zeros of the same shape,
+    sequences with sequences of zeros, and scalars with 0 of the same type."""
+    if isinstance(obj, np.ndarray):
+        return np.zeros_like(obj)
+    if isinstance(obj, list):
+        return [zero_structure_like(x) for x in obj]
+    if isinstance(obj, tuple):
+        return tuple(zero_structure_like(x) for x in obj)
+    # fallback for scalars / other objects
+    try:
+        return type(obj)(0)
+    except Exception:
+        return 0
+
+def compute_seq_biases_with_virtual_carry(
+    model,
+    lam: float = 1.0,
+    agg_kernels: str = "sum",
+    use_abs: bool = False,
+    include_original: bool = True,
+):
+    """
+    Virtual-bias carry for kernel_size>0, non-recurrent, len(seq_sizes)>1.
+
+    Rule:
+      bias(seq_{s+1}) += lam * sum_incoming( W_in→seq_s )
+
+    where:
+      - for s=0 (seq1), W_in is pool→seq1 (per filter kernel)
+      - for s>=1, W_in is seq_s→seq_{s+1}
+
+    Parameters
+    ----------
+    lam : float
+        Strength of the added virtual bias.
+    agg_kernels : {"sum", "mean", "max"}
+        How to aggregate across filter kernels for pool→seq1 weights.
+    use_abs : bool
+        If True, use absolute weights before summing (helps if signs cancel undesirably).
+    include_original : bool
+        If True, start from existing biases and add carry; if False, return only carry term.
+
+    Returns
+    -------
+    b_eff : same nested structure as model.biases_sequential_units
+        Effective sequential biases with the carry added.
+    """
+    assert model.kernel_size > 0, "This function is for kernel_size>0."
+    assert model.weights_seq_recurrent is None, "This function assumes non-recurrent."
+    assert len(model.sequential_layer_sizes) > 1, "Needs at least 2 sequential layers."
+
+    # Copy structure
+    b_eff = zero_structure_like(model.biases_sequential_units)
+
+    # We only operate on the first (and only) seq stack in your non-recurrent setup
+    l = 0
+    n_seq_layers = len(model.biases_sequential_units[l])
+
+    for s in range(n_seq_layers):
+        if include_original:
+            b_eff[l][s] = np.array(model.biases_sequential_units[l][s], copy=True)
+        else:
+            b_eff[l][s] = np.zeros_like(model.biases_sequential_units[l][s])
+
+    # ---- Helper: sum incoming dimension -> vector over target units
+    def incoming_sum(W):
+        # W shape: (n_in, n_out)
+        if use_abs:
+            W = np.abs(W)
+        return W.sum(axis=0)  # -> (n_out,)
+
+    # ---- 1) pool -> seq1 weights, aggregate across kernels, add to bias of seq2
+    # weights_sequential_layer[0] exists only if len(seq_sizes)>0 (true here)
+    # shape: (num_kernels, n_pool, n_seq1)
+    W_pool_seq1 = model.weights_sequential_layer[0]
+    if isinstance(W_pool_seq1, list):
+        W_pool_seq1 = np.array(W_pool_seq1)
+
+    if W_pool_seq1 is None or len(W_pool_seq1) == 0:
+        raise ValueError("Expected pool->seq1 weights in weights_sequential_layer[0].")
+
+    # compute per-kernel incoming sums for seq1 units: shape (num_kernels, n_seq1)
+    per_kernel = np.stack([incoming_sum(W_pool_seq1[fk]) for fk in range(W_pool_seq1.shape[0])], axis=0)
+
+    if agg_kernels == "sum":
+        carry_seq1 = per_kernel.sum(axis=0)
+    elif agg_kernels == "mean":
+        carry_seq1 = per_kernel.mean(axis=0)
+    elif agg_kernels == "max":
+        carry_seq1 = per_kernel.max(axis=0)
+    else:
+        raise ValueError("agg_kernels must be one of: 'sum', 'mean', 'max'.")
+
+    # add to bias of seq2 (index 1), but only if seq2 exists
+    # NOTE: carry_seq1 has size n_seq1; but you're asking to add it to bias of seq2.
+    # That requires a mapping from seq1-units to seq2-units. The simplest consistent
+    # interpretation of your request is: use the *next* weight matrix to map it forward:
+    #   carry_to_seq2 = (W_seq1_seq2.T @ 1_vector_weighted_by_seq1_incoming)
+    #
+    # However you asked explicitly: "weights connecting conv units with first seq layer
+    # should be summed up and added to the bias of the second seq layer."
+    #
+    # That means you want a vector of length n_seq2. So we *project* the seq1-carry
+    # through W_seq1_seq2 to get a n_seq2 vector:
+    W_seq1_seq2 = model.weights_sequential_layer[1][0]  # shape (n_seq1, n_seq2)
+    if use_abs:
+        W_seq1_seq2_used = np.abs(W_seq1_seq2)
+    else:
+        W_seq1_seq2_used = W_seq1_seq2
+
+    carry_to_seq2 = W_seq1_seq2_used.T @ carry_seq1  # -> (n_seq2,)
+
+    b_eff[l][1] += lam * carry_to_seq2
+
+    # ---- 2) For each seq_s -> seq_{s+1}, add sum_incoming(W_seq_s->seq_{s+1}) to bias of seq_{s+2}
+    # i indexes the interlayer weights: i=0 is seq1->seq2, i=1 is seq2->seq3, ...
+    # For bias of seq_{i+2}, we use summed incoming of W_{i}: (n_seq_{i+1},) then project through next W
+    # to match dimension of seq_{i+2}.
+    for i in range(0, n_seq_layers - 2):
+        W_cur = model.weights_sequential_layer[1][i]      # seq_{i+1} -> seq_{i+2}? careful:
+        # In your add_seq_weights:
+        #   for i, cur_sl in enumerate(seq_layers[0][1:]):
+        #       prev_sl = seq_layers[0][i]
+        #       W = weights_sequential_layer[1][i]
+        # so weights_sequential_layer[1][i] is seq_i -> seq_{i+1} (0-based)
+        # Therefore:
+        #   i=0: seq1 -> seq2
+        #   i=1: seq2 -> seq3
+        # and we want to add sum(W_cur) (a vector over target layer = seq_{i+1})
+        # into the bias of seq_{i+2}, so we must project through W_next.
+
+        W_i = model.weights_sequential_layer[1][i]        # seq_{i} -> seq_{i+1}
+        vec_target = incoming_sum(W_i)                    # length = n_seq_{i+1}
+
+        W_next = model.weights_sequential_layer[1][i + 1] # seq_{i+1} -> seq_{i+2}
+        W_next_used = np.abs(W_next) if use_abs else W_next
+
+        carry_to_nextnext = W_next_used.T @ vec_target    # length = n_seq_{i+2}
+
+        b_eff[l][i + 2] += lam * carry_to_nextnext
+
+    return b_eff
+
+
+def add_seq_biases_with_virtual_carry(
+    model,
+    Q,
+    lam: float = 1.0,
+    agg_kernels: str = "sum",
+    use_abs: bool = False,
+):
+    """
+    Writes sequential biases into Q, after applying virtual carry.
+    """
+    b_eff = compute_seq_biases_with_virtual_carry(
+        model,
+        lam=lam,
+        agg_kernels=agg_kernels,
+        use_abs=use_abs,
+        include_original=True,
+    )
+
+    for l, seq_layer in enumerate(model.slices.seq_layers):
+        for s, sl in enumerate(seq_layer):
+            Q[sl, sl] += np.diag(b_eff[l][s])
+
+    return Q
+
+
+import numpy as np
+
+def add_residual_skip_connections(
+    model,
+    Q: np.ndarray,
+    lam: float = 0.1,
+    mode: str = "tied",          # "tied" | "identity"
+    normalize: bool = True,
+    use_abs: bool = False,
+):
+    """
+    Add residual (skip) couplings directly into the QUBO energy.
+
+    Supports: kernel_size>0, non-recurrent (weights_seq_recurrent is None),
+    and at least 2 sequential layers.
+
+    Skips added:
+      - pool -> seq2  (skip seq1)
+      - seq_i -> seq_{i+2} for i=0..L-3
+
+    Parameters
+    ----------
+    lam : float
+        Global skip strength multiplier.
+    mode : str
+        "identity": add lam * I (diagonal-to-diagonal) skips when dims match.
+                    If dims don't match, we use a rectangular identity on min(dim).
+        "tied":     skip weights derived from existing weights, no new trainables:
+                    pool->seq2 uses W(pool->seq1) @ W(seq1->seq2)
+                    seq_i->seq_{i+2} uses W(i->i+1) @ W(i+1->i+2)
+    normalize : bool
+        If True, scale skip weights by sqrt(width_of_middle_layer) to keep magnitudes sane.
+    use_abs : bool
+        If True, use abs() of weights when forming products (reduces sign cancellation).
+
+    Returns
+    -------
+    Q : np.ndarray
+        Updated QUBO (upper-triangular fill style consistent with your code).
+    """
+    if model.weights_seq_recurrent is not None:
+        # Not handled here (recurrent case needs different wiring)
+        return Q
+    if model.kernel_size <= 0:
+        # You can extend similarly for FC-only case if you want
+        return Q
+    if len(model.slices.seq_layers) == 0 or len(model.slices.seq_layers[0]) < 2:
+        return Q
+
+    seq_slices = model.slices.seq_layers[0]
+    L = len(seq_slices)
+
+    def _maybe_abs(W):
+        return np.abs(W) if use_abs else W
+
+    def _rect_identity(n_in: int, n_out: int):
+        """Rectangular identity-like matrix."""
+        m = min(n_in, n_out)
+        M = np.zeros((n_in, n_out), dtype=float)
+        M[np.arange(m), np.arange(m)] = 1.0
+        return M
+
+    def _norm_factor(width_mid: int):
+        return np.sqrt(width_mid) if (normalize and width_mid > 0) else 1.0
+
+    # --------- Skip 1: pool -> seq2 (skip seq1) ----------
+    # Only if we have at least 2 seq layers: seq1 (idx 0), seq2 (idx 1)
+    pool_to_seq2_blocks = []
+    if L >= 2:
+        seq1_sl = seq_slices[0]
+        seq2_sl = seq_slices[1]
+
+        if mode == "tied":
+            # W_pool->seq1 is per filter kernel: weights_sequential_layer[0][fk]
+            # W_seq1->seq2 is weights_sequential_layer[1][0]
+            W_seq1_seq2 = _maybe_abs(model.weights_sequential_layer[1][0])  # (n_seq1, n_seq2)
+
+            for fk in range(model.num_filter_kernels):
+                pool_sl = model.slices.pool[fk]
+                W_pool_seq1 = _maybe_abs(model.weights_sequential_layer[0][fk])  # (n_pool, n_seq1)
+
+                # product gives (n_pool, n_seq2)
+                W_skip = (W_pool_seq1 @ W_seq1_seq2) / _norm_factor(W_seq1_seq2.shape[0])
+                pool_to_seq2_blocks.append((pool_sl, W_skip))
+
+            # add each kernel's block into Q
+            for pool_sl, W_skip in pool_to_seq2_blocks:
+                Q[pool_sl, seq2_sl] += lam * W_skip
+
+        elif mode == "identity":
+            # identity-like skip: pool dim -> seq2 dim (rectangular identity)
+            for fk in range(model.num_filter_kernels):
+                pool_sl = model.slices.pool[fk]
+                n_pool = pool_sl.stop - pool_sl.start
+                n_seq2 = seq2_sl.stop - seq2_sl.start
+                W_skip = _rect_identity(n_pool, n_seq2)
+                Q[pool_sl, seq2_sl] += lam * W_skip
+
+        else:
+            raise ValueError("mode must be 'tied' or 'identity'.")
+
+    # --------- Skip 2: seq_i -> seq_{i+2} for i=0..L-3 ----------
+    if L >= 3:
+        if mode == "tied":
+            # weights_sequential_layer[1][i] is seq_i -> seq_{i+1}
+            for i in range(L - 2):
+                src_sl = seq_slices[i]
+                mid_sl = seq_slices[i + 1]
+                dst_sl = seq_slices[i + 2]
+
+                W_i   = _maybe_abs(model.weights_sequential_layer[1][i])     # (n_i, n_{i+1})
+                W_ip1 = _maybe_abs(model.weights_sequential_layer[1][i + 1]) # (n_{i+1}, n_{i+2})
+
+                # product gives (n_i, n_{i+2})
+                W_skip = (W_i @ W_ip1) / _norm_factor(W_i.shape[1])
+                Q[src_sl, dst_sl] += lam * W_skip
+
+        elif mode == "identity":
+            for i in range(L - 2):
+                src_sl = seq_slices[i]
+                dst_sl = seq_slices[i + 2]
+                n_src = src_sl.stop - src_sl.start
+                n_dst = dst_sl.stop - dst_sl.start
+                W_skip = _rect_identity(n_src, n_dst)
+                Q[src_sl, dst_sl] += lam * W_skip
+
+        else:
+            raise ValueError("mode must be 'tied' or 'identity'.")
+
+    return Q
+
+
+import numpy as np
+from src.model.cdqbm_state import Conv_Deep_QBM
+
+def add_skip_penultimate_to_output(
+    model: Conv_Deep_QBM,
+    Q: np.ndarray,
+    lam: float = 0.1,
+    normalize: bool = True,
+    use_abs: bool = False,
+):
+    """
+    Add a skip connection from the penultimate seq layer to output, derived from:
+      W_skip = W_(L-2 -> L-1) @ W_(L-1 -> out)
+
+    Works for kernel_size>0 or 0, as long as there are >=2 sequential layers.
+    Non-recurrent case (weights_seq_recurrent is None).
+
+    Adds to Q[seq_{L-2}, out].
+    """
+    # only for non-recurrent in this helper
+    if model.weights_seq_recurrent is not None:
+        return Q
+
+    # Need at least two sequential layers
+    if len(model.slices.seq_layers) == 0:
+        return Q
+    seq = model.slices.seq_layers[0]
+    if len(seq) < 2:
+        return Q
+
+    # Identify slices
+    penult_sl = seq[-2]
+    last_sl   = seq[-1]
+
+    # Existing weights:
+    # seq_{L-2} -> seq_{L-1} is weights_sequential_layer[1][L-2]
+    # because weights_sequential_layer[1][i] maps seq_i -> seq_{i+1} (0-based)
+    i = len(seq) - 2  # index for edge from penultimate to last
+    W_penult_last = model.weights_sequential_layer[1][i]  # (n_penult, n_last)
+
+    # last -> out weight: in your code it's weights_hidden_to_output[idx] with idx over last_hidden slices.
+    # In non-recurrent + seq case, last_hidden is [last_sl], so idx=0.
+    W_last_out = model.weights_hidden_to_output[0]        # (n_last, n_out)
+
+    if use_abs:
+        W_penult_last = np.abs(W_penult_last)
+        W_last_out    = np.abs(W_last_out)
+
+    # Compose
+    W_skip = W_penult_last @ W_last_out  # (n_penult, n_out)
+
+    # Optional normalization to control magnitude growth
+    if normalize:
+        W_skip = W_skip / np.sqrt(W_penult_last.shape[1] + 1e-12)
+
+    # Add to Q
+    Q[penult_sl, model.slices.out] += lam * W_skip
+    return Q
+
+import numpy as np
+
+def add_residual_skips_from_output(
+    model,
+    Q: np.ndarray,
+    lam: float = 0.1,
+    mode: str = "tied",          # "tied" | "identity"
+    normalize: bool = True,
+    use_abs: bool = False,
+    max_hops: int = 2,           # how far back to skip: 2 means connect L-2 and L-3 to out
+):
+    """
+    Add residual skip connections *from the output side* into the QUBO energy.
+
+    Non-recurrent (weights_seq_recurrent is None) and requires sequential layers.
+
+    Adds skip couplings:
+      - seq_{L-2} -> out  (skips last layer)
+      - seq_{L-3} -> out  (skips last two layers)   if max_hops>=3
+      - ...
+      - seq_{L-k} -> out  for k = 2..max_hops  (if available)
+
+    TIED mode:
+      W_skip(seq_{L-k} -> out) = W_{L-k -> L-k+1} @ ... @ W_{L-1 -> out}
+
+    IDENTITY mode:
+      If n_src == n_out: W_skip = I
+      else: rectangular identity-like matrix on min(n_src, n_out)
+
+    Notes:
+      - This modifies the energy directly (adds off-diagonal blocks to Q).
+      - For clamped QUBO you must fold these into diagonal biases using label_vec,
+        analogous to what you already do for last_hidden.
+
+    Parameters
+    ----------
+    max_hops:
+        2 means only connect seq_{L-2} -> out.
+        3 means connect seq_{L-2} and seq_{L-3} -> out, etc.
+
+    Returns
+    -------
+    Q : np.ndarray
+    """
+    if model.weights_seq_recurrent is not None:
+        return Q
+
+    if len(model.slices.seq_layers) == 0:
+        return Q
+    seq_slices = model.slices.seq_layers[0]
+    L = len(seq_slices)
+    if L < 2:
+        return Q
+
+    def _maybe_abs(W):
+        return np.abs(W) if use_abs else W
+
+    def _rect_identity(n_in: int, n_out: int):
+        m = min(n_in, n_out)
+        M = np.zeros((n_in, n_out), dtype=float)
+        M[np.arange(m), np.arange(m)] = 1.0
+        return M
+
+    def _norm_factor(width_mid: int):
+        return np.sqrt(width_mid) if (normalize and width_mid > 0) else 1.0
+
+    out_sl = model.slices.out
+    n_out = out_sl.stop - out_sl.start
+
+    # last -> out weights (non-recurrent seq case: idx=0)
+    W_last_out = _maybe_abs(model.weights_hidden_to_output[0])  # (n_last, n_out)
+
+    # How many layers back can we connect?
+    # k=2 corresponds to source layer = L-2 (penultimate)
+    max_k = min(max_hops, L)  # can't go back beyond seq1
+    for k in range(2, max_k + 1):
+        src_idx = L - k
+        src_sl = seq_slices[src_idx]
+        n_src = src_sl.stop - src_sl.start
+
+        if mode == "identity":
+            if n_src == n_out:
+                W_skip = np.eye(n_src, dtype=float)
+            else:
+                W_skip = _rect_identity(n_src, n_out)
+            Q[src_sl, out_sl] += lam * W_skip
+            continue
+
+        if mode != "tied":
+            raise ValueError("mode must be 'tied' or 'identity'.")
+
+        # Build product from seq_{src_idx} up to seq_{L-1}, then to out.
+        # weights_sequential_layer[1][i] maps seq_i -> seq_{i+1}
+        # so multiply W_src @ W_{src+1} @ ... @ W_{L-2} @ W_last_out
+        W_prod = None
+        for i in range(src_idx, L - 1):
+            W_i = _maybe_abs(model.weights_sequential_layer[1][i])  # (n_i, n_{i+1})
+            if W_prod is None:
+                W_prod = W_i
+            else:
+                W_prod = W_prod @ W_i
+
+            # optional normalization each hop (keeps magnitudes stable)
+            if normalize:
+                W_prod = W_prod / _norm_factor(W_i.shape[1])
+
+        # now to out
+        W_skip = W_prod @ W_last_out  # (n_src, n_out)
+
+        # optional normalization for final projection width
+        if normalize:
+            W_skip = W_skip / _norm_factor(W_last_out.shape[0])
+
+        Q[src_sl, out_sl] += lam * W_skip
+
+    return Q
+
+
+
+
 

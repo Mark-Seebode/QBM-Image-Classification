@@ -26,7 +26,9 @@ import matplotlib.pyplot as plt
 import pickle
 
 def _to_bqm(Q: np.ndarray) -> di.BQM:
-    return di.BQM(Q, "BINARY")
+    bqm = di.BQM(Q, "BINARY")
+    bqm.normalize()
+    return bqm
 
 def _is_linear_only(bqm: di.BQM) -> bool:
     return len(bqm.quadratic) == 0
@@ -93,6 +95,7 @@ class LocalSASampler:
 
     @staticmethod
     def parallel_sa_sample(args):
+        sa_sampler: SimulatedAnnealingSampler
         qubo_as_bqm,  sample_count, anneal_steps, sa_sampler, seed = args
         # qubo_as_bqm = di.BQM(qubo_matrix, "BINARY")
         # sa_sampler = SimulatedAnnealingSampler()

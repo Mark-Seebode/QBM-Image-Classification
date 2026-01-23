@@ -178,11 +178,6 @@ class Disc_QBM():
             raise FileNotFoundError("Savepoint file not found")
 
         assert len(loaded_savepoint) in [5, 6]
-        self.weight_objects = [
-            self.weights_all_visible_to_hidden, self.weights_clamped_visible_to_output,
-            self.biases_hidden, self.biases_output,
-            self.weights_output_output
-        ]
 
         if len(loaded_savepoint) == 6:  # fully connected
             (self.weights_all_visible_to_hidden, self.weights_clamped_visible_to_output, self.biases_hidden,

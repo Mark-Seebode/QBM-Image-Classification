@@ -76,11 +76,12 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     # train
     print('Training QBM...')
     dqbm.train_model(train_X, train_y, test_X, test_y, batch_size=batch_size, learning_rate=learning_rate)
+    #dqbm.load_savepoint(save + "weights.pkl")
     print('QBM trained')
 
-    print("Predict on test data...")
-    predictions = []
-    #samples_output_list = []
+    # print("Predict on test data...")
+    # predictions = []
+    # samples_output_list = []
     # for i in tqdm(range(len(test_X)), desc="Predicting on test data", ncols=80, leave=False):
     #    p, samples_output,_ = dqbm.predict(test_X[i])
     #    predictions.append(p)
@@ -132,16 +133,17 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     # print("AUC Score: ", auc)
     import pickle
 
-    with open(f"{save}acc_per_epoch{seed}.pkl", "wb") as f:
+    with open(f"{save}modelacc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(dqbm.training_history.acc_per_epoch, f)
-    with open(f"{save}auc_per_epoch{seed}.pkl", "wb") as f:
+    with open(f"{save}modelauc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(dqbm.training_history.auc_per_epoch, f)
-    with open(f"{save}nll_per_epoch{seed}.pkl", "wb") as f:
+    with open(f"{save}modelnll_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(dqbm.training_history.nll_per_epoch, f)
 
     print("acc_per_epoch:", dqbm.training_history.acc_per_epoch)
     print("auc_per_epoch:", dqbm.training_history.auc_per_epoch)
-    print("QPU time total:", dqbm.qpu_time_used)
+    #print("QPU time total:", dqbm.qpu_time_used)
+    dqbm.save_weights(f"weights_{seed}", save)
 
 
 
@@ -187,7 +189,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--seed',
                         metavar='INT',
                         help='Seed for RNG',
-                        default=1967690937, # [1967690937, 2286980494, 3620295971, 1662044193, 1825595160, 3054779705, 900327972, 1620954898,3699850877, 3492574433]
+                        default=16620441, # [1967690937, 22869804, 36202959, 16620441, 1825595160, 3054779705, 900327972, 1620954898,3699850877, 3492574433]
                         type=int)
     parser.add_argument('-sc', '--sample_count',
                         metavar='INT',
@@ -199,7 +201,7 @@ if __name__ == '__main__':
     parser.add_argument('--solver',
                         help='Solver, options: \'SA\', \'DW_2000Q_6\', \'Advantage_system4.1\', \'FujitsuDAU\', '
                              '\'MyQLM\', \'BMS\'',
-                        default='Advantage_system4.1',
+                        default='SA',
                         type=str)
 
     parser.add_argument('--data_set',
@@ -220,7 +222,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--load_path',
                         help='Filepath to numpy file with saved weights to initialize from',
-                        default="out/Pneumonia_again/quantum/",
+                        default="out/Pneumonia_again/",
                         type=str)
 
     parser.add_argument('--name',

@@ -5,9 +5,6 @@
 #SBATCH --nodes=1-1
 #SBATCH -n 1
 
-export TMPDIR=$HOME/tmp
-mkdir -p $TMPDIR
-
 mkdir -p out/slurm
 
 source venv/bin/activate && echo "venv loaded"

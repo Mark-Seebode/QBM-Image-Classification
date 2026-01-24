@@ -77,25 +77,24 @@ def configure_hyperparams(run):
     global LEARNING_RATE
     global N_HIDDEN_NODES
     global SAMPLE_COUNT
-    N_HIDDEN_NODES = 10
 
     if run:
 
-        config_defaults = {'batch_size': args.batch_size,  'learning_rate': args.learning_rate, 'sample_count': args.sample_count,}
-                           #'n_hidden_nodes': args.n_hidden_nodes,} #'is_recurrent_weights': args.is_recurrent_weights,'restricted': args.restricted,
+        config_defaults = {'batch_size': args.batch_size,  'learning_rate': args.learning_rate, 'sample_count': args.sample_count,
+                           'n_hidden_nodes': args.n_hidden_nodes,} #'is_recurrent_weights': args.is_recurrent_weights,'restricted': args.restricted,
                         #'anneal': args.anneal}
 
         run.config.setdefaults(config_defaults)
 
         BATCH_SIZE = wandb.config.batch_size
         LEARNING_RATE = wandb.config.learning_rate
-        #N_HIDDEN_NODES = wandb.config.n_hidden_nodes
+        N_HIDDEN_NODES = wandb.config.n_hidden_nodes
         SAMPLE_COUNT = wandb.config.sample_count
 
     else:
         BATCH_SIZE = args.batch_size
         LEARNING_RATE = args.learning_rate
-        #N_HIDDEN_NODES = args.n_hidden_nodes
+        N_HIDDEN_NODES = args.n_hidden_nodes
         SAMPLE_COUNT = args.sample_count
 
 
@@ -328,7 +327,7 @@ if __name__ == '__main__':
                         default=1000,
                         type=int)
 
-    parser.add_argument('--sweep_id', type=str, default="tvedakzy") #2vifgbnq 8q200wls mnistk3i5g39d current rbm penumonia estex4pi   current sq qbm xzvm3exu
+    parser.add_argument('--sweep_id', type=str, default="zzcoom8p") #2vifgbnq 8q200wls mnistk3i5g39d current rbm penumonia estex4pi   current sq qbm xzvm3exu
     parser.add_argument('--key', type=str, default=None)
 
     args = parser.parse_args()

@@ -1059,14 +1059,27 @@ class Disc_QBM():
             all_scores = []
             for i, val_x in enumerate(tqdm(val_X, desc="predict validation set", ncols=80, leave=False)):
                 prediction, _, probs = self.predict(val_x)
-                all_targets.append(int(val_Y[i]))
-                val_predictions.append(prediction)
-                all_scores.append(float(probs[1]))  # P(y=1)
+                val_predictions.append(int(prediction))
 
-            acc, _, _, _, _ = metrics.get_metrics(val_Y, val_predictions, ["0", "1"])
+                if self.use_one_hot_encoding:
+                    true_label = int(np.argmax(val_Y[i]))
+                    all_targets.append(true_label)
+                    all_scores.append(np.array(probs, dtype=float))  # per-class probability vector
+                else:
+                    all_targets.append(int(val_Y[i]))
+                    all_scores.append(float(probs[1]))
+
+            acc, _, _, _, _ = metrics.get_metrics(all_targets, val_predictions, ["0", "1"])
             y_true = np.array(all_targets)
-            y_score = np.array(all_scores)
-            auc = roc_auc_score(y_true, y_score)
+            if self.use_one_hot_encoding:
+                y_score = np.vstack(all_scores)  # shape (n_samples, n_classes)
+                if self.n_output_nodes == 2:
+                    auc = roc_auc_score(y_true, y_score[:, 1])  # binary: use positive-class score
+                else:
+                    auc = roc_auc_score(y_true, y_score, multi_class='ovr')  # multiclass AUC
+            else:
+                y_score = np.array(all_scores)
+                auc = roc_auc_score(y_true, y_score)
 
             combined_acc_auc = 0.5*acc + 0.5*auc
             self.training_history.acc_per_epoch.append(acc)
@@ -1177,11 +1190,15 @@ class Disc_QBM():
 
         samples_of_output = np_samples[:, 0:self.n_output_nodes]
         average_output = np.mean(samples_of_output, axis=0)
-        rounded_output = np.round(average_output).astype(int)
-        one_hot = np.argmax(average_output)
 
         if self.use_one_hot_encoding:
-            return one_hot, samples_of_output.tolist()
+            s = float(average_output.sum())
+            if s > 0:
+                probs = (average_output / s).astype(np.float32)
+            else:
+                probs = np.full_like(average_output, 1.0 / len(average_output), dtype=np.float32)
+
+            return int(np.argmax(average_output)), samples_of_output.tolist(), probs
         else:
             p1 = float(average_output[0])
             p1 = min(max(p1, 1e-12), 1 - 1e-12)

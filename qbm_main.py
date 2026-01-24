@@ -45,7 +45,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
         train_X, train_y = data_loader.get_cifar10_from_torch([3,5], samples_per_class=200, train=True)
         test_X, test_y = data_loader.get_cifar10_from_torch([3,5], samples_per_class=50, train=False)
     elif data_set == "NEU-CLS-64":
-        train_X, train_y,  val_X, val_y, test_X, test_y = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
+        train_X, train_y,  val_X, val_y, test_X, test_y = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
                                                                       classes=["gg", "rp"], seed=seed, image_size=(28, 28), contrast_factor=1.5)
         test_X = val_X
         test_y = val_y
@@ -58,6 +58,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     train_X, train_y = data_loader.shuffle_images(train_X, train_y, seed)
 
     #train_y = data_loader.encode_labels_to_onehot(train_y, num_classes)
+    #test_y = data_loader.encode_labels_to_onehot(test_y, num_classes)
     print("Data preprocessed")
 
     param_string = "_se" + str(seed) + "_h" + str(n_hidden_nodes) + "_sol" + solver + "_sc" + str(sample_count) + "_b" + str(
@@ -76,38 +77,40 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     # train
     print('Training QBM...')
     dqbm.train_model(train_X, train_y, test_X, test_y, batch_size=batch_size, learning_rate=learning_rate)
-    #dqbm.load_savepoint(save + "weights.pkl")
+    #dqbm.load_savepoint(save + "weights_22869804.pkl")
     print('QBM trained')
-
+    #
     # print("Predict on test data...")
-    # predictions = []
-    # samples_output_list = []
+    # val_predictions = []
+    # all_targets = []
+    # all_scores = []
     # for i in tqdm(range(len(test_X)), desc="Predicting on test data", ncols=80, leave=False):
-    #    p, samples_output,_ = dqbm.predict(test_X[i])
-    #    predictions.append(p)
-        # for sample in samples_output:
-        #     samples_output_list.append(sample)
-
-    # for i in tqdm(range(len(val_X)), desc="Predicting on val data", ncols=80, leave=False):
-    #     p, samples_output = dqbm.predict(val_X[i])
-    #     predictions.append(p)
-        # for sample in samples_output:
-        #     samples_output_list.append(sample)
-
-    #all_possible_patterns = ["0", "1"]
-    #sorted_probs = dqbm.get_result_distribution(samples_output_list, all_possible_patterns)
-
-    #tes_y = data_loader.encode_labels_to_onehot(test_y, num_classes)
-    # tt = []
-    # for bro in test_y:
-    #     #sample_str = ''.join(str(int(y)) for y in bro)
-    #     sample_str = str(bro)
-    #     tt.append(sample_str)
-    # true_counts = Counter(tt)
-    # total_true = sum(true_counts.values())
-    # true_probs = {k: v / total_true for k, v in true_counts.items()}
-    # true_probs = [true_probs.get(pattern, 0.0) for pattern in all_possible_patterns]
-    # print(true_probs)
+    #     prediction, _, probs = dqbm.predict(test_X[i])
+    #     val_predictions.append(int(prediction))
+    #
+    #     if dqbm.use_one_hot_encoding:
+    #        true_label = int(np.argmax(test_y[i]))
+    #        all_targets.append(true_label)
+    #        all_scores.append(np.array(probs, dtype=float))
+    #     else:
+    #        all_targets.append(int(test_y[i]))
+    #        all_scores.append(float(probs[1]))
+    #
+    #
+    # acc, _, _, _, _ = metrics.get_metrics(all_targets, val_predictions, ["0", "1"])
+    # y_true = np.array(all_targets)
+    # if dqbm.use_one_hot_encoding:
+    #     y_score = np.vstack(all_scores)  # shape (n_samples, n_classes)
+    #     if dqbm.n_output_nodes == 2:
+    #         auc = roc_auc_score(y_true, y_score[:, 1])  # binary: use positive-class score
+    #     else:
+    #         auc = roc_auc_score(y_true, y_score, multi_class='ovr')  # multiclass AUC
+    # else:
+    #     y_score = np.array(all_scores)
+    #     auc = roc_auc_score(y_true, y_score)
+    #
+    # print("Final Accuracy: ", acc)
+    # print("Final AUC: ", auc)
     # metrics.show_and_save_distribution([sorted_probs, true_probs], ["qbm", "true"],
     #                                    "src/experiments/integerbarssc100_nodoublenorm_nachabb" + param_string + "true_distribution.png",
     #                                    "Distribution of Test Data", all_possible_patterns, True)
@@ -132,18 +135,22 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     # print("Recall: ", recall)
     # print("AUC Score: ", auc)
     import pickle
+    with open(f"{save}modelacc_per_epoch22869804.pkl", "rb") as f:
+         p = pickle.load(f)
+
+    print("Loaded acc_per_epoch:", p)
 
     with open(f"{save}modelacc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(dqbm.training_history.acc_per_epoch, f)
     with open(f"{save}modelauc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(dqbm.training_history.auc_per_epoch, f)
-    with open(f"{save}modelnll_per_epoch{seed}.pkl", "wb") as f:
-        pickle.dump(dqbm.training_history.nll_per_epoch, f)
+    # with open(f"{save}modelnll_per_epoch{seed}.pkl", "wb") as f:
+    #     pickle.dump(dqbm.training_history.nll_per_epoch, f)
 
     print("acc_per_epoch:", dqbm.training_history.acc_per_epoch)
     print("auc_per_epoch:", dqbm.training_history.auc_per_epoch)
     #print("QPU time total:", dqbm.qpu_time_used)
-    dqbm.save_weights(f"weights_{seed}", save)
+    #dqbm.save_weights(f"weights_{seed}", save)
 
 
 
@@ -205,8 +212,8 @@ if __name__ == '__main__':
                         type=str)
 
     parser.add_argument('--data_set',
-                        help='Dataset to use, options: \'mnist\', \'breastmnist\', \'pneumoniamnist\', \'fashionmnist\'',
-                        default='pneumoniamnist',
+                        help='Dataset to use, options: \'mnist\', \'breastmnist\', \'pneumoniamnist\', \'fashionmnist\', \'NEU-CLS-64\'',
+                        default='NEU-CLS-64',
                         type=str)
 
     parser.add_argument('--num_classes',
@@ -222,7 +229,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--load_path',
                         help='Filepath to numpy file with saved weights to initialize from',
-                        default="out/Pneumonia_again/",
+                        default="out/slurm/",
                         type=str)
 
     parser.add_argument('--name',

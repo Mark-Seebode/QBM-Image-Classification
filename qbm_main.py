@@ -37,7 +37,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     elif data_set == "breastmnist":
         (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('src/data/medmnist/breastmnist.npz')
     elif data_set == "pneumoniamnist":
-        (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('src/data/medmnist/pneumoniamnist.npz')
+        (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('/home/s/seebode/BIG/data/medmnist/pneumoniamnist.npz')
     elif data_set == "fashionmnist":
         train_X, train_y = data_loader.get_fashionmnist('src/data/fashionmnist/train-images-idx3-ubyte', 'src/data/fashionmnist/train-labels-idx1-ubyte', classes=[0, 1])
         test_X, test_y = data_loader.get_fashionmnist('src/data/fashionmnist/t10k-images-idx3-ubyte', 'src/data/fashionmnist/t10k-labels-idx1-ubyte', classes=[0, 1])

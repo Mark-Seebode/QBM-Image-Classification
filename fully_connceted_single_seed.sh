@@ -19,14 +19,7 @@ SEED=$5
 # Dispatch each seed in parallel
 
 echo "Dispatching job: seed $SEED with hyperparameters"
-srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 qbm_main.py \
-    --seed $SEED \
-    --learning_rate $LEARNING_RATE \
-    --batch_size $BATCH_SIZE \
-    --sample_count $SAMPLE_COUNT \
-    --hnodes $N_HIDDEN_NODES \
-    --load_path "out/slurm/" \
-    --name "seed_$SEED"&
+srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 qbm_main.py
 
 echo -e "\tWaiting for Job completion."
 wait

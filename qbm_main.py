@@ -47,8 +47,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     elif data_set == "NEU-CLS-64":
         train_X, train_y,  val_X, val_y, test_X, test_y = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
                                                                       classes=["gg", "rp"], seed=seed, image_size=(28, 28), contrast_factor=1.5)
-        test_X = val_X
-        test_y = val_y
+
     else:
         raise ValueError("Invalid dataset")
     print("Data loaded")
@@ -77,7 +76,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     # train
     print('Training QBM...')
     dqbm.train_model(train_X, train_y, test_X, test_y, batch_size=batch_size, learning_rate=learning_rate)
-    #dqbm.load_savepoint(save + "weights_22869804.pkl")
+    dqbm.load_savepoint(save + "agweights_22869804.pkl")
     print('QBM trained')
     #
     # print("Predict on test data...")
@@ -136,12 +135,12 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     # print("AUC Score: ", auc)
     import pickle
 
-    with open(f"{save}acc_per_epoch{seed}.pkl", "wb") as f:
+    with open(f"{save}agacc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(dqbm.training_history.acc_per_epoch, f)
-    with open(f"{save}auc_per_epoch{seed}.pkl", "wb") as f:
+    with open(f"{save}agauc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(dqbm.training_history.auc_per_epoch, f)
-    # with open(f"{save}modelnll_per_epoch{seed}.pkl", "wb") as f:
-    #     pickle.dump(dqbm.training_history.nll_per_epoch, f)
+    with open(f"{save}agmodelnll_per_epoch{seed}.pkl", "wb") as f:
+        pickle.dump(dqbm.training_history.nll_per_epoch, f)
 
     print("acc_per_epoch:", dqbm.training_history.acc_per_epoch)
     print("auc_per_epoch:", dqbm.training_history.auc_per_epoch)
@@ -169,7 +168,7 @@ if __name__ == '__main__':
     parser.add_argument('-lr', '--learning_rate',
                         metavar='FLOAT',
                         help='Learning rate for training',
-                        default=0.4529451796571889,
+                        default=0.4529451796571889,#e1_b1__se18255951_h10_solSA_sc100_b1.0_e10_bs73_l0.4529451796571889_rFalse_datamnist_n_qucun_3492574433.pkl
                         type=float)
 
     parser.add_argument('-r', '--restricted',
@@ -192,7 +191,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--seed',
                         metavar='INT',
                         help='Seed for RNG',
-                        default=18255951, # [1967690937, 22869804, 36202959, 16620441, 18255951, 3054779705, 900327972, 1620954898,3699850877, 3492574433]
+                        default=1967690937, # [12995138, 88139577, 37523562, 87634854, 265871164, 210619836, 83934544, 55626886, 17682686, 11087010]
                         type=int)
     parser.add_argument('-sc', '--sample_count',
                         metavar='INT',
@@ -204,12 +203,12 @@ if __name__ == '__main__':
     parser.add_argument('--solver',
                         help='Solver, options: \'SA\', \'DW_2000Q_6\', \'Advantage_system4.1\', \'FujitsuDAU\', '
                              '\'MyQLM\', \'BMS\'',
-                        default='SA',
+                        default='Advantage_system4.1',
                         type=str)
 
     parser.add_argument('--data_set',
                         help='Dataset to use, options: \'mnist\', \'breastmnist\', \'pneumoniamnist\', \'fashionmnist\', \'NEU-CLS-64\'',
-                        default='NEU-CLS-64',
+                        default='pneumoniamnist',
                         type=str)
 
     parser.add_argument('--num_classes',
@@ -225,7 +224,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--load_path',
                         help='Filepath to numpy file with saved weights to initialize from',
-                        default="out/slurm/",
+                        default="out/Pneumonia_again/quantum/",
                         type=str)
 
     parser.add_argument('--name',

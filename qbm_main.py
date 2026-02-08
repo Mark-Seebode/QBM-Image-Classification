@@ -37,7 +37,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     elif data_set == "breastmnist":
         (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('src/data/medmnist/breastmnist.npz')
     elif data_set == "pneumoniamnist":
-        (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('src/data/medmnist/pneumoniamnist.npz')
+        (train_X, train_y), (val_X, val_y), (test_X, test_y) = data_loader.get_medmnist('/home/s/seebode/BIG/data/medmnist/pneumoniamnist.npz')
     elif data_set == "fashionmnist":
         train_X, train_y = data_loader.get_fashionmnist('src/data/fashionmnist/train-images-idx3-ubyte', 'src/data/fashionmnist/train-labels-idx1-ubyte', classes=[0, 1])
         test_X, test_y = data_loader.get_fashionmnist('src/data/fashionmnist/t10k-images-idx3-ubyte', 'src/data/fashionmnist/t10k-labels-idx1-ubyte', classes=[0, 1])
@@ -76,7 +76,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     # train
     print('Training QBM...')
     #dqbm.load_savepoint(
-        #save + "e6__se1967690937_h10_solAdvantage_system4.1_sc100_b1.0_e17_bs73_l0.4529451796571889_rFalse_datapneumoniamnist_n_qucun_3492574433.pkl")
+        #save + "e17_b3__se1967690937_h10_solSA_sc100_b1.0_e20_bs73_l0.4529451796571889_rFalse_databreastmnist_n_qucun_3492574433.pkl")
     dqbm.train_model(train_X, train_y, test_X, test_y, batch_size=batch_size, learning_rate=learning_rate)
 
     print('QBM trained')
@@ -136,7 +136,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     # print("Recall: ", recall)
     # print("AUC Score: ", auc)
     import pickle
-
+    #
     with open(f"{save}agacc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(dqbm.training_history.acc_per_epoch, f)
     with open(f"{save}agauc_per_epoch{seed}.pkl", "wb") as f:
@@ -147,7 +147,7 @@ def main(seed=19, n_hidden_nodes=10, solver="SA", sample_count=100,
     print("acc_per_epoch:", dqbm.training_history.acc_per_epoch)
     print("auc_per_epoch:", dqbm.training_history.auc_per_epoch)
     #print("QPU time total:", dqbm.qpu_time_used)
-    #dqbm.save_weights(f"weights_{seed}", save)
+    dqbm.save_weights(f"agweights_{seed}", save)
 
 
 
@@ -231,7 +231,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--name',
                         help='Name for run',
-                        default="qucun_3492574433",#23771.56
+                        default="l",#23771.56
                         #13293.167110532522
 
                         type=str)

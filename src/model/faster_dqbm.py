@@ -183,9 +183,15 @@ class Disc_QBM():
             (self.weights_all_visible_to_hidden, self.weights_clamped_visible_to_output, self.biases_hidden,
              self.biases_output,
              self.weights_output_output, self.weights_hidden_hidden) = loaded_savepoint
+            self.weight_objects= [
+                self.weights_all_visible_to_hidden, self.weights_clamped_visible_to_output, self.biases_hidden,
+                self.biases_output, self.weights_output_output, self.weights_hidden_hidden]
         else: # semi restricted
             (self.weights_all_visible_to_hidden, self.weights_clamped_visible_to_output, self.biases_hidden, self.biases_output,
              self.weights_output_output) = loaded_savepoint
+            self.weight_objects = [
+                self.weights_all_visible_to_hidden, self.weights_clamped_visible_to_output, self.biases_hidden,
+                self.biases_output, self.weights_output_output]
 
     def init_weights_for_supervised(self):
         random.seed(self.seed)
@@ -650,9 +656,7 @@ class Disc_QBM():
                     else:
                         try:
                             samples = self.get_parallel_qa_samples(qubo_matrix, label)
-                        except (
-                                ConnectionError, ConnectionResetError, ConnectionAbortedError,
-                                ConnectionRefusedError):
+                        except:
                             self.refresh_connection()
                             samples = self.get_parallel_qa_samples(qubo_matrix, label)
             else:
@@ -994,9 +998,9 @@ class Disc_QBM():
         with open(f"{path}/{title}.pkl", "wb") as f:
             pickle.dump(self.weight_objects, f)
 
-    def train_model(self, train_X, train_Y, val_X, val_Y, batch_size=8, learning_rate=0.005):
-        #all_possible_patterns = ["0", "1"]
-        #sorted_probs_list = []
+    def train_model(self, train_X, train_Y, val_X, val_Y, batch_size=8, learning_rate=0.005, restart_from_batch_n=1):
+        # all_possible_patterns = ["0", "1"]
+        # sorted_probs_list = []
         # random data point just to get embedding
 
         save_folder = self.speicherort
@@ -1008,6 +1012,19 @@ class Disc_QBM():
               f"sample count: {self.sample_count}\n",
               f"beta eff: {self.beta_eff}\n",
               )
+
+        # Safety check: make sure requested batch exists
+        num_batches_total = (len(train_X) + batch_size - 1) // batch_size
+        if restart_from_batch_n < 1:
+            raise ValueError("restart_from_batch_n must be >= 1")
+        if restart_from_batch_n > num_batches_total:
+            raise ValueError(
+                f"restart_from_batch_n ({restart_from_batch_n}) exceeds total batches "
+                f"({num_batches_total}) for batch_size={batch_size}"
+            )
+
+        # Only skip batches in the first epoch (since weights are already loaded externally)
+        restart_active = restart_from_batch_n > 1
 
         weight_change_list = []
 
@@ -1024,7 +1041,15 @@ class Disc_QBM():
             epoch_nll = 0
             nll = torch.nn.NLLLoss()
             weights_visible_to_hidden_before = self.weights_all_visible_to_hidden.copy()
-            for b in tqdm(range(0, len(train_X), batch_size), desc=f"Training current epoch {epoch}", ncols=80, leave=False):
+
+            for b in tqdm(range(0, len(train_X), batch_size), desc=f"Training current epoch {epoch}", ncols=80,
+                          leave=False):
+
+                # Skip batches only in the first epoch when restarting
+                if restart_active and epoch == 1 and batchnum < restart_from_batch_n:
+                    batchnum += 1
+                    continue
+
                 if (b + batch_size) <= len(train_X):
                     x_batch = train_X[b:b + batch_size]  # [X_train[i] for i in range(b, b + batch_size)]
                     y_batch = train_Y[b:b + batch_size]
@@ -1034,70 +1059,78 @@ class Disc_QBM():
 
                 if len(x_batch) == 0:
                     print("Batch is empty")
+                    batchnum += 1
                     continue
 
                 try:
-                    output_bias_errors_batch, avg_nll_batch = self.train_for_one_iteration(x_batch, y_batch, learning_rate, nll)
+                    output_bias_errors_batch, avg_nll_batch = self.train_for_one_iteration(x_batch, y_batch,
+                                                                                           learning_rate, nll)
                     avg_output_bias_errors_batch = np.mean(output_bias_errors_batch)
                     epoch_errors += avg_output_bias_errors_batch
                     epoch_nll += avg_nll_batch
                     self.training_history.errors_per_batch.append(avg_output_bias_errors_batch)
                     # self.save_weights(
                     # f'e{epoch}_b{batchnum}_{self.param_string}')
-                    if epoch == 1 and batchnum == 1 and (self.solver_string == "Advantage_system4.1" or self.solver_string == "Advantage_system7.1"):
+                    if epoch == 1 and batchnum == 1 and (
+                            self.solver_string == "Advantage_system4.1" or self.solver_string == "Advantage_system7.1"):
                         print(f"QPU time used for one iteration: {self.qpu_time_used} microseconds")
                     batchnum += 1
+
                 except Exception as e:
                     self.save_weights(
                         f'e{epoch}_b{batchnum}_{self.param_string}', save_folder)
                     metrics.save_history(f"{save_folder}/", self.training_history)
                     raise e
-            #self.save_weights(
-            #    f'e{epoch}_{self.param_string}', save_folder)
-            val_predictions = []
-            all_targets = []
-            all_scores = []
-            for i, val_x in enumerate(tqdm(val_X, desc="predict validation set", ncols=80, leave=False)):
-                prediction, _, probs = self.predict(val_x)
-                val_predictions.append(int(prediction))
 
-                if self.use_one_hot_encoding:
-                    true_label = int(np.argmax(val_Y[i]))
-                    all_targets.append(true_label)
-                    all_scores.append(np.array(probs, dtype=float))  # per-class probability vector
-                else:
-                    all_targets.append(int(val_Y[i]))
-                    all_scores.append(float(probs[1]))
+            self.save_weights(
+                f'e{epoch}_{self.param_string}', save_folder)
 
-            acc, _, _, _, _ = metrics.get_metrics(all_targets, val_predictions, ["0", "1"])
-            y_true = np.array(all_targets)
-            if self.use_one_hot_encoding:
-                y_score = np.vstack(all_scores)  # shape (n_samples, n_classes)
-                if self.n_output_nodes == 2:
-                    auc = roc_auc_score(y_true, y_score[:, 1])  # binary: use positive-class score
-                else:
-                    auc = roc_auc_score(y_true, y_score, multi_class='ovr')  # multiclass AUC
-            else:
-                y_score = np.array(all_scores)
-                auc = roc_auc_score(y_true, y_score)
+            # val_predictions = []
+            # all_targets = []
+            # all_scores = []
+            # for i, val_x in enumerate(tqdm(val_X, desc="predict validation set", ncols=80, leave=False)):
+            #     prediction, _, probs = self.predict(val_x)
+            #     val_predictions.append(int(prediction))
+            #
+            #     if self.use_one_hot_encoding:
+            #         true_label = int(np.argmax(val_Y[i]))
+            #         all_targets.append(true_label)
+            #         all_scores.append(np.array(probs, dtype=float))  # per-class probability vector
+            #     else:
+            #         all_targets.append(int(val_Y[i]))
+            #         all_scores.append(float(probs[1]))
+            #
+            # acc, _, _, _, _ = metrics.get_metrics(all_targets, val_predictions, ["0", "1"])
+            # y_true = np.array(all_targets)
+            # if self.use_one_hot_encoding:
+            #     y_score = np.vstack(all_scores)  # shape (n_samples, n_classes)
+            #     if self.n_output_nodes == 2:
+            #         auc = roc_auc_score(y_true, y_score[:, 1])  # binary: use positive-class score
+            #     else:
+            #         auc = roc_auc_score(y_true, y_score, multi_class='ovr')  # multiclass AUC
+            # else:
+            #     y_score = np.array(all_scores)
+            #     auc = roc_auc_score(y_true, y_score)
+            #
+            # combined_acc_auc = 0.5*acc + 0.5*auc
+            # self.training_history.acc_per_epoch.append(acc)
+            # self.training_history.auc_per_epoch.append(auc)
+            # self.training_history.combined_acc_auc_per_epoch.append(combined_acc_auc)
+            #
+            # avg_epoch_errors = epoch_errors / num_batches
+            # avg_epoch_nll = epoch_nll / num_batches
+            #
+            # self.training_history.error_per_epoch.append(avg_epoch_errors)
+            # self.training_history.nll_per_epoch.append(avg_epoch_nll)
+            #
+            # if self.solver_string == "Advantage_system4.1" or self.solver_string == "Advantage_system7.1":
+            #     print(f"QPU time used after {epoch} epochs: {self.qpu_time_used} microseconds")
+            #
+            # weights_visible_to_hidden_current = self.weights_all_visible_to_hidden.copy()
+            # weight_change_list.append(np.linalg.norm(weights_visible_to_hidden_current - weights_visible_to_hidden_before))
 
-            combined_acc_auc = 0.5*acc + 0.5*auc
-            self.training_history.acc_per_epoch.append(acc)
-            self.training_history.auc_per_epoch.append(auc)
-            self.training_history.combined_acc_auc_per_epoch.append(combined_acc_auc)
-
-            avg_epoch_errors = epoch_errors / num_batches
-            avg_epoch_nll = epoch_nll / num_batches
-
-            self.training_history.error_per_epoch.append(avg_epoch_errors)
-            self.training_history.nll_per_epoch.append(avg_epoch_nll)
-
-            if self.solver_string == "Advantage_system4.1" or self.solver_string == "Advantage_system7.1":
-                print(f"QPU time used after {epoch} epochs: {self.qpu_time_used} microseconds")
-
-            weights_visible_to_hidden_current = self.weights_all_visible_to_hidden.copy()
-            weight_change_list.append(np.linalg.norm(weights_visible_to_hidden_current - weights_visible_to_hidden_before))
-
+            # After first epoch, always continue normally
+            restart_active = False
 
         if self.solver_string == "Advantage_system4.1" or self.solver_string == "Advantage_system7.1":
             print(f"QPU time used for one training run: {self.qpu_time_used} microseconds")
@@ -1110,7 +1143,6 @@ class Disc_QBM():
         # with open(f"{save_folder}/auc_per_epoch{self.seed}.pkl", "wb") as f:
         #     pickle.dump(self.training_history.auc_per_epoch, f)
 
-
         #
         # import matplotlib.pyplot as plt
         # # plot weights_visible_to_hidden weight change
@@ -1121,8 +1153,6 @@ class Disc_QBM():
         # plt.title("Change in Visible-to-Hidden Weights Over Training")
         # plt.grid()
         # plt.show()
-
-
 
     def find_embedding_with_client(self, bqm, save, label = None):
         if bqm.quadratic == {}:

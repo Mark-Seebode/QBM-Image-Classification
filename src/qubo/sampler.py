@@ -22,12 +22,17 @@ import dwave_networkx as dnx
 import dwave_networkx
 import minorminer
 import matplotlib.pyplot as plt
+import time
 
 import pickle
 
-def _to_bqm(Q: np.ndarray) -> di.BQM:
+def _to_bqm(Q: np.ndarray, ising_or_qubo) -> di.BQM:
     bqm = di.BQM(Q, "BINARY")
     bqm.normalize()
+
+    if ising_or_qubo == "ising":
+        bqm = bqm.change_vartype(di.SPIN, inplace=False)
+
     return bqm
 
 def _is_linear_only(bqm: di.BQM) -> bool:
@@ -41,7 +46,7 @@ def _solve_linear_only(bqm: di.BQM, num_reads: int, seed: int | None) -> di.Samp
 
 class LocalSASampler:
     # TODO: parallel sampling support
-    def __init__(self, num_reads: int, num_sweeps: int = 1000, parallelize=False, seed: int | None = None):
+    def __init__(self, num_reads: int, num_sweeps: int = 1000, parallelize=False, seed: int | None = None, ising_or_qubo= "qubo"):
         if not parallelize:
             self.sa = SimulatedAnnealingSampler()
             self.sa_list = []
@@ -63,9 +68,10 @@ class LocalSASampler:
         self.num_sweeps = num_sweeps
         self.seed = seed
         self.num_reads = num_reads
+        self.ising_or_qubo = ising_or_qubo
 
     def sample_Q(self, Q: np.ndarray, label=None) -> np.ndarray:
-        bqm = _to_bqm(Q)
+        bqm = _to_bqm(Q, self.ising_or_qubo)
         if self.sa is None:
             tasks = [
                 (bqm,  int(self.num_reads / 10), self.num_sweeps, self.sa_list[0], self.seed + 0),
@@ -104,7 +110,7 @@ class LocalSASampler:
 
 class DWaveAdapter:
     # TODO: PQA support
-    def __init__(self, solver, api_token: str, dwave_token, groupQpuToken_name: str, num_reads: int, embedding=None, seed: int | None = None, luna: bool = False):
+    def __init__(self, solver, api_token: str, dwave_token, groupQpuToken_name: str, num_reads: int, embedding=None, seed: int | None = None, luna: bool = False, ising_or_qubo = "qubo"):
         self.solver_backend = solver
         self.solver = solver
         self.embedding = embedding
@@ -115,6 +121,7 @@ class DWaveAdapter:
         self.embedding_clamped = None
         self.embedding_unclamped = None
         self.qpu_time_used = 0
+        self.ising_or_qubo = ising_or_qubo
 
         if luna:
             try:
@@ -135,8 +142,9 @@ class DWaveAdapter:
             # use an Advantage solver_backend (first generation -> with 5000 Qubits)
             self.solver_backend = self.client.get_solver(name=solver)
 
+
     def sample_Q(self, Q: np.ndarray, label=None) -> np.ndarray:
-        qubo_as_bqm = _to_bqm(Q)
+        qubo_as_bqm = _to_bqm(Q, self.ising_or_qubo)
         if self.luna:
             if label is None:
                 if self.unclamped_backend is None:
@@ -227,14 +235,31 @@ class DWaveAdapter:
                                 )
 
         answer = self.run_qa_sampling_Dwave(embedded_q, embedding, qubo_as_bqm, sample_count)
-        samples = list(answer.samples())
+        samples = answer.record.sample.tolist()
         # if self.current_batch_index == 50:
         #print(samples)
         #     raise Exception("stop")
         return np.array(samples)
 
 
-    def run_qa_sampling_Dwave(self, embedded_bqm, this_embedding, source_bqm_unembedded, sample_count):
+    def refresh_connection(self):
+        """
+        If there are problems with the connection to the D-Wave, this method
+        can be used to close the client object and create a new one.
+        :return: No return value, adapts the attributes of the DQBM object
+        directly.
+        """
+        print("Refreshing connection...")
+        solver_id = self.solver.id
+        self.client.close()
+        time.sleep(30)
+        # get new connection to client
+        self.client = Client(token=self.TOKEN, solver=solver_id)
+        # make sure to get the same solver_backend from this connection
+        self.solver = self.client.get_solver(name=solver_id)
+
+
+    def run_qa_sampling_Dwave(self, embedded_bqm, this_embedding, source_bqm_unembedded, sample_count)-> di.SampleSet:
         try:
             embedded_answer = self.solver_backend.sample_bqm(embedded_bqm,
                                                              num_reads=sample_count,
@@ -244,14 +269,24 @@ class DWaveAdapter:
             #print(f"    QPU time used: {embedded_answer.info['timing']['qpu_access_time']} microseconds")
             #print("QPU time used: ", self.qpu_time_used)
             #raise Exception("Not implemented")
-        except (
-                ConnectionError, ConnectionResetError, ConnectionAbortedError,
-                ConnectionRefusedError):
-            self.refresh_connection()
-            embedded_answer = self.solver_backend.sample_bqm(embedded_bqm,
-                                                             num_reads=sample_count,
-                                                             answer_mode='raw'
-                                                             ).sampleset
+        except Exception as e:
+            #wait 1 min and try again 5 times in a loop
+            print(f"Error during D-Wave sampling: {e}. Retrying in 1 minute...")
+            for i in range(5):
+                time.sleep(60)
+                try:
+                    self.refresh_connection()
+                    embedded_answer = self.solver_backend.sample_bqm(embedded_bqm,
+                                                                     num_reads=sample_count,
+                                                                     answer_mode='raw'
+                                                                     ).sampleset
+                    break
+                except Exception as e:
+                    print(f"Retry {i+1}/5 failed: {e}")
+            else:
+                raise RuntimeError("Failed to sample from D-Wave after 5 retries. Check connection and solver status.")
+
+
         self.qpu_time_used += embedded_answer.info['timing']['qpu_access_time']
         answer = unembed_sampleset(target_sampleset=embedded_answer,
                                    embedding=this_embedding,
@@ -303,21 +338,6 @@ class DWaveAdapter:
             self.embedding_clamped = embedding
 
         return embedding
-
-
-    def refresh_connection(self):
-        """
-        If there are problems with the connection to the D-Wave, this method
-        can be used to close the client object and create a new one.
-        :return: No return value, adapts the attributes of the DQBM object
-        directly.
-        """
-        solver_id = self.solver_backend.id
-        self.client.close()
-        # get new connection to client
-        self.client = Client(token=self.TOKEN, solver=solver_id)
-        # make sure to get the same solver_backend from this connection
-        self.solver_backend = self.client.get_solver(name=solver_id)
 
 
 

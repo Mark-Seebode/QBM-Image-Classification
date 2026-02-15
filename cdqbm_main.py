@@ -81,11 +81,15 @@ def main(seed=19, solver="SA", sample_count=100,
             test_x, test_y = val_x, val_y
 
     elif data_set == "NEU-CLS-64": # /home/s/seebode/BIG/
-        train_x, train_y, val_x, val_y, test_x, test_y = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
+        train_x, train_y, val_x, val_y, test_x, test_y = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
                                                                       classes=["gg", "rp"], seed=seed,
                                                                         image_size=(28, 28), contrast_factor=1.5)
         if test_on_val:
             test_x, test_y = val_x, val_y
+
+        # turn all o labels to -1 for compatibility
+        train_y = np.where(train_y == 0, -1, train_y)
+        #test_y = np.where(test_y == 0, -1, test_y)
     else:
         raise ValueError("Invalid dataset")
     print("Data loaded")
@@ -140,10 +144,12 @@ def main(seed=19, solver="SA", sample_count=100,
         sequential_layer_sizes=sequential_layer_sizes,
         param_string=param_string,
         load_path="",
+        stride=1,
         speicherort=save,
         is_restricted=bool(restricted),
         hidden_bias_type=hidden_bias_type,
         solver=solver,
+        ising_or_qubo="ising",
         anneal=anneal,
         api_token=api_token,
         dwave_token=dwave_token,
@@ -172,15 +178,16 @@ def main(seed=19, solver="SA", sample_count=100,
 
 
     print('Training QBM...')
-    epoch_loss_list, acc_list, auc_list, kernel_change_history = train_model(qbm, train_x, train_y, batch_size, epochs, learning_rate, sample_count, beta_eff, conv_learning_rate=conv_learning_rate, one_hot=one_hot, test_x=test_x, test_y=test_y)
-    #qbm.save_weights(title="for_QA_test")
+    #qbm.load_weights("e11_b22_error_backup", "out/CDQBM_QuCUN/")
+    epoch_loss_list, acc_list, auc_list, kernel_change_history = train_model(qbm, train_x, train_y, batch_size, epochs, learning_rate, sample_count, beta_eff, conv_learning_rate=conv_learning_rate, one_hot=one_hot, test_x=test_x, test_y=test_y, restart_from_batch_n=22)
+    #qbm.save_weights(title=name, path=save)
     print('QBM trained')
 
-    with open(save + f"acc_per_epoch{seed}.pkl", "wb") as f:
-        pickle.dump(acc_list, f)
-
-    with open(save + f"auc_per_epoch{seed}.pkl", "wb") as f:
-        pickle.dump(auc_list, f)
+    # with open(save + name + f"acc_per_epoch{seed}.pkl", "wb") as f:
+    #     pickle.dump(acc_list, f)
+    #
+    # with open(save + name + f"auc_per_epoch{seed}.pkl", "wb") as f:
+    #     pickle.dump(auc_list, f)
 
     print("accuracy per epoch:", acc_list)
     print("auc per epoch:", auc_list)
@@ -219,12 +226,12 @@ if __name__ == '__main__':
 
 
     parser.add_argument('-lr', '--learning_rate',
-                        default=0.005,
+                        default=0.017241958766778403,
                         type=float,
                         help='Learning rate for training')
 
     parser.add_argument('-clr', '--conv_learning_rate',
-                        default=0.005,
+                        default=0.017241958766778403,
                         type=float,
                         help='Learning rate for training')
 
@@ -244,12 +251,12 @@ if __name__ == '__main__':
                         help='Batchsize for training')
 
     parser.add_argument('-s', '--seed',
-                        default=23094922,
+                        default=88139577, #[12995138, 88139577, 37523562, 87634854, 265871164, 210619836, 83934544, 55626886, 17682686, 11087010]
                         type=int,
                         help='Seed for RNG')
 
     parser.add_argument('-sc', '--sample_count',
-                        default=10,
+                        default=30,
                         type=int,
                         help='Number of samples to take from the solver_backend (reads)')
 
@@ -261,7 +268,7 @@ if __name__ == '__main__':
     parser.add_argument('--solver',
                         default='SA',
                         type=str,
-                        help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system1.8')")
+                        help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system4.1')")
 
     parser.add_argument('--data_set',
                         default='NEU-CLS-64',
@@ -279,12 +286,12 @@ if __name__ == '__main__':
                         help='NOT IMPLEMENTED YET')
 
     parser.add_argument('--save',
-                        default='out/slurm/',
+                        default='out/CDQBM_QuCUN/',
                         type=str,
                         help='Output folder prefix')
 
     parser.add_argument('--name',
-                        default='run',
+                        default='QA_SA_hyperparameters',
                         type=str,
                         help='Name for run')
 
@@ -294,14 +301,14 @@ if __name__ == '__main__':
                         help='Size of the convolutional kernel')
 
     parser.add_argument('--num_kernels',
-                        default=5,
+                        default=1,
                         type=int,
                         help='number of convolutional kernels')
 
     parser.add_argument("--sequential_layer_sizes",
                         type=int,
                         nargs="+",
-                        default=[24, 16, 8],
+                        default=[16, 8, 4],
                         help="List of sequential layer sizes",
     )
 
@@ -331,7 +338,7 @@ if __name__ == '__main__':
                         help='Use multi-node one-hot output (vs single-node binary)')
 
     parser.add_argument('--test_on_val',
-                        default=True,
+                        default=False,
                         type=bool,
                         help='Test either on validation set (if available) instead of test set')
 

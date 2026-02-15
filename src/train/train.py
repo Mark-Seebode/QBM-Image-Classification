@@ -73,10 +73,13 @@ class Weight_Erros():
         self.errors_conv_label_bias = np.zeros_like(model.conv_label_bias)
 
 
-def nll_from_probs_binary(probs: np.ndarray, y: int, eps=1e-12) -> float:
+def nll_from_probs_binary(probs: np.ndarray, y: int, eps=1e-12, ising_or_qubo="qubo") -> float:
     # probs = [p0, p1]
-    #index = 0 if y == -1 else 1
-    p = probs[y]
+    if ising_or_qubo == "ising":
+        index = 0 if y == -1 else 1
+    else:
+        index = y
+    p = probs[index]
     return float(-np.log(max(p, eps)))
 
 
@@ -97,7 +100,7 @@ def getting_samples_batch(model, X, Y, beta_eff, one_hot, convLabel_bias):
         all_samples_u.append(out_u)
 
         if not one_hot:
-            loss = nll_from_probs_binary(out_u.probs, int(y))
+            loss = nll_from_probs_binary(out_u.probs, int(y), ising_or_qubo=model.sampler.ising_or_qubo)
         else:
             p = max(out_u.probs[int(y)], 1e-12)
             loss = float(-np.log(p))
@@ -801,7 +804,7 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
 
     kernel_change_history = []
     sample_change_history = []
-    conv_label = True
+    conv_label = False
 
     num_batches_total = (len(train_x) + batch_size - 1) // batch_size
     if restart_from_batch_n < 1:

@@ -74,7 +74,7 @@ def configure_hyperparams(run):
         SAMPLE_COUNT = args.sample_count
 
 
-        return ("_b" + str(BATCH_SIZE) + "_l" + str(LEARNING_RATE) + "_ks" + str(KERNEL_SIZE) + "_nk" + str(NUM_KERNELS)
+    return ("_b" + str(BATCH_SIZE) + "_l" + str(LEARNING_RATE) + "_ks" + str(KERNEL_SIZE) + "_nk" + str(NUM_KERNELS)
                 + "_sls" + str(SEQUENTIAL_LAYER_SIZES) + "_r" + str(RESTRICTED) + "_sc" + str(SAMPLE_COUNT))
 
 #globalcounter = 0

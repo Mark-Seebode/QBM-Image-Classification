@@ -159,10 +159,8 @@ def main(args, resume=False, resume_id=""):
                 hidden_bias_type="shared",
                 solver="Advantage2_system1.11",
                 ising_or_qubo="ising",
-                api_token=api_token,
                 dwave_token=dwave_token,
                 num_reads=SAMPLE_COUNT,
-                groupQpuToken_name=groupQpuToken_name,
                 example_image=train_x[0],
                 parallelize=False,
                 centerize=False

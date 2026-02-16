@@ -125,9 +125,7 @@ def main(args, resume=False, resume_id=""):
             with open("src/secrets/dwave_key.txt", "rb") as f:
                 dwave_token = f.read().strip().decode("utf-8")
         except:
-            api_token = ""
-            groupQpuToken_name = ""
-            dwave_token = ""
+            raise Exception("Error loading API tokens. Please ensure the token files exist and contain the correct tokens.")
 
 
 

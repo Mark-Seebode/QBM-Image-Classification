@@ -804,7 +804,7 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
 
     kernel_change_history = []
     sample_change_history = []
-    conv_label = False
+    conv_label = True
 
     num_batches_total = (len(train_x) + batch_size - 1) // batch_size
     if restart_from_batch_n < 1:

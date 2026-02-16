@@ -796,7 +796,7 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
         )
 
 
-def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, sample_count, beta_eff, conv_learning_rate=None, one_hot: bool = False, test_x=None, test_y=None, restart_from_batch_n=1):
+def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, sample_count, beta_eff, conv_learning_rate=None, one_hot: bool = False, test_x=None, test_y=None, restart_from_batch_n=1, save_path="out/"):
     n = len(train_x)
     epoch_loss_list = []
     auc_list = []
@@ -868,6 +868,7 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
                 batchnum += 1
         #train_x, train_y = data_loader.shuffle_images(train_x, train_y, dataset_shuffle_seeds[epoch-1])
         tqdm.write(f"Epoch {epoch}/{epochs} finished - avg loss: {avg_loss:.4f}")
+        model.save_weights(title=f"e{epoch}_seed{model.seed}", path=save_path)
 
         predictions = []
         probs_all = []

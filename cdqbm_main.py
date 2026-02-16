@@ -246,7 +246,7 @@ if __name__ == '__main__':
                         help='Epochs for training')
 
     parser.add_argument('-b', '--batch_size',
-                        default=2,
+                        default=1,
                         type=int,
                         help='Batchsize for training')
 
@@ -256,7 +256,7 @@ if __name__ == '__main__':
                         help='Seed for RNG')
 
     parser.add_argument('-sc', '--sample_count',
-                        default=30,
+                        default=200,
                         type=int,
                         help='Number of samples to take from the solver_backend (reads)')
 
@@ -268,7 +268,7 @@ if __name__ == '__main__':
     parser.add_argument('--solver',
                         default='SA',
                         type=str,
-                        help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system4.1')")
+                        help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system1.11')")
 
     parser.add_argument('--data_set',
                         default='NEU-CLS-64',
@@ -301,14 +301,14 @@ if __name__ == '__main__':
                         help='Size of the convolutional kernel')
 
     parser.add_argument('--num_kernels',
-                        default=1,
+                        default=5,
                         type=int,
                         help='number of convolutional kernels')
 
     parser.add_argument("--sequential_layer_sizes",
                         type=int,
                         nargs="+",
-                        default=[16, 8, 4],
+                        default=[24, 16, 8],
                         help="List of sequential layer sizes",
     )
 

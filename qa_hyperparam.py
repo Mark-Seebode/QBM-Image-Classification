@@ -73,9 +73,11 @@ def configure_hyperparams(run):
         RESTRICTED = args.restricted
         SAMPLE_COUNT = args.sample_count
 
+    sequential_layer_sizes_str = "_".join(map(str, SEQUENTIAL_LAYER_SIZES))
+
 
     return ("_b" + str(BATCH_SIZE) + "_l" + str(LEARNING_RATE) + "_ks" + str(KERNEL_SIZE) + "_nk" + str(NUM_KERNELS)
-                + "_sls" + str(SEQUENTIAL_LAYER_SIZES) + "_r" + str(RESTRICTED) + "_sc" + str(SAMPLE_COUNT))
+                + "_sls" + sequential_layer_sizes_str + "_r" + str(RESTRICTED) + "_sc" + str(SAMPLE_COUNT))
 
 #globalcounter = 0
 
@@ -108,7 +110,7 @@ def main(args, resume=False, resume_id=""):
         metrics_for_all_seeds = [[] for i in range(num_metrics)]
 
 
-        seeds = [12995138, 88139577, 37523562]
+        seeds = [88139577, 37523562, 87634854,]
 
         epoch_data = defaultdict(lambda: {
             'acc_val': [],
@@ -129,6 +131,7 @@ def main(args, resume=False, resume_id=""):
                                                                               image_size=(28, 28),
                                                                               contrast_factor=1.5)
             val_y = np.where(val_y == 0, -1, val_y)
+            train_y = np.where(train_y == 0, -1, train_y)
             train_x, train_y = data_loader.shuffle_images(train_x, train_y, seed)
             param_string =  params_string_for_run + "_seed" + str(seed)
 

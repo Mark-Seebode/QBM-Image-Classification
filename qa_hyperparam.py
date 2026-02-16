@@ -116,12 +116,6 @@ def main(args, resume=False, resume_id=""):
         })
 
         try:
-            with open("src/secrets/luna_token.txt", "rb") as f:
-                api_token = f.read().strip().decode("utf-8")
-
-            with open("src/secrets/luna_group_token.txt", "rb") as f:
-                groupQpuToken_name = f.read().strip().decode("utf-8")
-
             with open("src/secrets/dwave_key.txt", "rb") as f:
                 dwave_token = f.read().strip().decode("utf-8")
         except:

@@ -89,7 +89,6 @@ def main(seed=19, solver="SA", sample_count=100,
 
         # turn all o labels to -1 for compatibility
         train_y = np.where(train_y == 0, -1, train_y)
-        #test_y = np.where(test_y == 0, -1, test_y)
     else:
         raise ValueError("Invalid dataset")
     print("Data loaded")
@@ -246,17 +245,17 @@ if __name__ == '__main__':
                         help='Epochs for training')
 
     parser.add_argument('-b', '--batch_size',
-                        default=1,
+                        default=2,
                         type=int,
                         help='Batchsize for training')
 
     parser.add_argument('-s', '--seed',
-                        default=88139577, #[12995138, 88139577, 37523562, 87634854, 265871164, 210619836, 83934544, 55626886, 17682686, 11087010]
+                        default=12995138, #[12995138, 88139577, 37523562, 87634854, 265871164, 210619836, 83934544, 55626886, 17682686, 11087010]
                         type=int,
                         help='Seed for RNG')
 
     parser.add_argument('-sc', '--sample_count',
-                        default=200,
+                        default=100,
                         type=int,
                         help='Number of samples to take from the solver_backend (reads)')
 
@@ -266,7 +265,7 @@ if __name__ == '__main__':
                         help='Num sweeps for SA (ignored for QPU)')
 
     parser.add_argument('--solver',
-                        default='SA',
+                        default='Advantage2_system1.11',
                         type=str,
                         help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system1.11')")
 
@@ -308,7 +307,7 @@ if __name__ == '__main__':
     parser.add_argument("--sequential_layer_sizes",
                         type=int,
                         nargs="+",
-                        default=[24, 16, 8],
+                        default=[16, 8],
                         help="List of sequential layer sizes",
     )
 

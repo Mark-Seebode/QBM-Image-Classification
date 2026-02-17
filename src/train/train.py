@@ -896,8 +896,8 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
         auc_list.append(auc)
         acc_list.append(acc)
 
-        print("\nacc:", acc )
-        print("auc:", auc)
+        #print("\nacc:", acc )
+        #print("auc:", auc)
 
 
     return epoch_loss_list, acc_list, auc_list, kernel_change_history

@@ -123,14 +123,15 @@ def main(args, resume=False, resume_id=""):
         except:
             raise Exception("Error loading API tokens. Please ensure the token files exist and contain the correct tokens.")
 
-
+        # make new folder in path for this run
+        new_run_path = os.path.join(args.path, params_string_for_run)
+        os.makedirs(new_run_path, exist_ok=True)
 
         for seed in seeds:
             train_x, train_y, val_x, val_y, _, _ = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
                                                                               classes=["gg", "rp"], seed=seed,
                                                                               image_size=(28, 28),
                                                                               contrast_factor=1.5)
-            val_y = np.where(val_y == 0, -1, val_y)
             train_y = np.where(train_y == 0, -1, train_y)
             train_x, train_y = data_loader.shuffle_images(train_x, train_y, seed)
             param_string =  params_string_for_run + "_seed" + str(seed)
@@ -157,7 +158,7 @@ def main(args, resume=False, resume_id=""):
                 param_string=param_string,
                 load_path="",
                 stride=1,
-                speicherort=args.path,
+                speicherort=new_run_path,
                 is_restricted=bool(RESTRICTED),
                 hidden_bias_type="shared",
                 solver="Advantage2_system1.11",
@@ -183,17 +184,15 @@ def main(args, resume=False, resume_id=""):
                                                                                      conv_learning_rate=LEARNING_RATE,
                                                                                      one_hot=False, test_x=val_x,
                                                                                      test_y=val_y)
-            qbm.save_weights(title=param_string, path=args.path)
+            qbm.save_weights(title=param_string, path=new_run_path)
             print('QBM trained')
+            print(f"Results for seed {seed}: \nACC={acc_list}\n AUC={auc_list}")
 
 
 
             for epoch in range(20):
                 epoch_data[epoch]['acc_val'].append(acc_list[epoch])
                 epoch_data[epoch]['auc_val'].append(auc_list[epoch])
-
-        folder_path = os.path.dirname(args.path)
-        shutil.rmtree(folder_path)
 
         epochs_sorted = sorted(epoch_data.keys())
         avg_acc_list = [np.mean(epoch_data[e]['acc_val']) for e in epochs_sorted]

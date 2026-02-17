@@ -227,12 +227,22 @@ class DWaveAdapter:
     def get_qa_samples_Dwave(self, qubo_as_bqm, sample_count, embedding):
             # uqo: problem.embedding = ...
 
-        embedded_q = embed_bqm(source_bqm=qubo_as_bqm,
-                                embedding=EmbeddedStructure(
-                                target_edges=self.solver_backend.edges,
-                                embedding=embedding
+        try:
+            embedded_q = embed_bqm(source_bqm=qubo_as_bqm,
+                                    embedding=EmbeddedStructure(
+                                    target_edges=self.solver_backend.edges,
+                                    embedding=embedding
+                                        )
                                     )
-                                )
+        except Exception as e:
+            print(f"Error during embedding: {e}. Retrying with new embedding...")
+            embedding = self.find_embedding_with_client(qubo_as_bqm, False, None)
+            embedded_q = embed_bqm(source_bqm=qubo_as_bqm,
+                                    embedding=EmbeddedStructure(
+                                    target_edges=self.solver_backend.edges,
+                                    embedding=embedding
+                                        )
+                                    )
 
         answer = self.run_qa_sampling_Dwave(embedded_q, embedding, qubo_as_bqm, sample_count)
         samples = answer.record.sample.tolist()
@@ -309,7 +319,7 @@ class DWaveAdapter:
             qubo_graph = nx.Graph([(0, 0)])
             target_edges = qubo_graph.edges
         else:
-            target_edges = bqm.quadratic
+            target_edges = list(bqm.quadratic.keys())
         embedding, embedding_found = minorminer.find_embedding(target_edges,
                                                                self.solver_backend.edges,
                                                                return_overlap=True,

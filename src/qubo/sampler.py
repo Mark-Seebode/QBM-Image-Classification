@@ -165,7 +165,7 @@ class DWaveAdapter:
                 this_embedding = self.find_embedding_with_client(
                     qubo_as_bqm, False, label) if self.embedding_clamped is None else self.embedding_clamped
                 self.embedding_clamped = this_embedding
-            return self.get_qa_samples_Dwave(qubo_as_bqm, self.num_reads, this_embedding)
+            return self.get_qa_samples_Dwave(qubo_as_bqm, self.num_reads, this_embedding, label)
 
 
     def connect_to_luna(self, api_token: str, groupQpuToken_name: str):
@@ -224,7 +224,7 @@ class DWaveAdapter:
 
         return algorithm
 
-    def get_qa_samples_Dwave(self, qubo_as_bqm, sample_count, embedding):
+    def get_qa_samples_Dwave(self, qubo_as_bqm, sample_count, embedding, label):
             # uqo: problem.embedding = ...
 
         try:
@@ -236,7 +236,7 @@ class DWaveAdapter:
                                     )
         except Exception as e:
             print(f"Error during embedding: {e}. Retrying with new embedding...")
-            embedding = self.find_embedding_with_client(qubo_as_bqm, False, None)
+            embedding = self.find_embedding_with_client(qubo_as_bqm, False, label)
             embedded_q = embed_bqm(source_bqm=qubo_as_bqm,
                                     embedding=EmbeddedStructure(
                                     target_edges=self.solver_backend.edges,

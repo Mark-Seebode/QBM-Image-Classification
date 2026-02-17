@@ -183,7 +183,7 @@ def main(args, resume=False, resume_id=""):
                                                                                      SAMPLE_COUNT, 1.0,
                                                                                      conv_learning_rate=LEARNING_RATE,
                                                                                      one_hot=False, test_x=val_x,
-                                                                                     test_y=val_y)
+                                                                                     test_y=val_y, save_path=new_run_path)
             qbm.save_weights(title=param_string, path=new_run_path)
             print('QBM trained')
             print(f"Results for seed {seed}: \nACC={acc_list}\n AUC={auc_list}")

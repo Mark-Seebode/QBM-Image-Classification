@@ -28,7 +28,7 @@ import pickle
 
 def _to_bqm(Q: np.ndarray, ising_or_qubo) -> di.BQM:
     bqm = di.BQM(Q, "BINARY")
-    bqm.normalize()
+    #bqm.normalize()
 
     if ising_or_qubo == "ising":
         bqm = bqm.change_vartype(di.SPIN, inplace=False)

@@ -230,7 +230,7 @@ def get_error(model, avgs_c: AvgConfig, avgs_u: AvgConfig, convLabel_bias=False)
         error.errors_biases_out += (avgs_c.biases_output[item] - avgs_u.biases_output[item])
         error.errors_weights_output_output += (avgs_c.weights_output_output[item] - avgs_u.weights_output_output[item])
 
-        return error
+    return error
 
 
 def normalize_error(model, error: Weight_Erros, norm_factor, convLabel_bias):
@@ -327,7 +327,6 @@ def train_one_iteration(
     n = len(X)
     prev_kernel_weights = model.kernel_weights.copy()
 
-    all_samples_c = []
     # prepare label batch for the whole Y at once
     if one_hot:
         lab_batch = np.zeros((len(Y), model.num_label_nodes), dtype=float)
@@ -896,8 +895,8 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
         auc_list.append(auc)
         acc_list.append(acc)
 
-        #print("\nacc:", acc )
-        #print("auc:", auc)
+        print("\nacc:", acc )
+        print("auc:", auc)
 
 
     return epoch_loss_list, acc_list, auc_list, kernel_change_history

@@ -92,7 +92,10 @@ def main(args, resume=True, resume_id="6wv4w77p"):
     # start run
     if HYPERPARAM_OPT:
         if resume:
-            run = wandb.init(group=SWEEP_ID, id=resume_id, resume="must")
+            run = wandb.init(
+                project="NEU-CLS-64 CDQBM",
+                entity="seebode-mark-ludwig-maximilianuniversity-of-munich",
+                group=SWEEP_ID, id=resume_id, resume="must")
         else:
             run = wandb.init(reinit=True, group=SWEEP_ID)
 

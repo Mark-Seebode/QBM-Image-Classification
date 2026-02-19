@@ -275,6 +275,7 @@ class DWaveAdapter:
                                                              num_reads=sample_count,
                                                              answer_mode='raw'
                                                              ).sampleset
+            self.qpu_time_used += embedded_answer.info['timing']['qpu_access_time']
 
             #print(f"    QPU time used: {embedded_answer.info['timing']['qpu_access_time']} microseconds")
             #print("QPU time used: ", self.qpu_time_used)
@@ -290,6 +291,7 @@ class DWaveAdapter:
                                                                      num_reads=sample_count,
                                                                      answer_mode='raw'
                                                                      ).sampleset
+                    self.qpu_time_used += embedded_answer.info['timing']['qpu_access_time']
                     break
                 except Exception as e:
                     print(f"Retry {i+1}/5 failed: {e}")
@@ -297,7 +299,6 @@ class DWaveAdapter:
                 raise RuntimeError("Failed to sample from D-Wave after 5 retries. Check connection and solver status.")
 
 
-        self.qpu_time_used += embedded_answer.info['timing']['qpu_access_time']
         answer = unembed_sampleset(target_sampleset=embedded_answer,
                                    embedding=this_embedding,
                                    source_bqm=source_bqm_unembedded)

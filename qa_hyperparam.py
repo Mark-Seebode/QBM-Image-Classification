@@ -151,7 +151,7 @@ def main(args, resume=True, resume_id="6wv4w77p"):
                 image_shape = np.asarray(train_x[0]).shape[:2]
             num_visible_nodes = int(image_shape[0] * image_shape[1])
 
-            for epoch in range(20):
+            for epoch in range(1, 21):
                 qbm = Conv_Deep_QBM(
                     num_visible_nodes=num_visible_nodes,
                     num_lable_nodes=1,
@@ -198,8 +198,8 @@ def main(args, resume=True, resume_id="6wv4w77p"):
                 pos_scores = np.array([p[1] for p in probs_all])
                 auc = roc_auc_score(val_y, pos_scores)
 
-                epoch_data[epoch]['acc_val'].append(acc)
-                epoch_data[epoch]['auc_val'].append(auc)
+                epoch_data[epoch - 1]['acc_val'].append(acc)
+                epoch_data[epoch- 1]['auc_val'].append(auc)
             print("Loaded results for seed 88139577")
 
         for seed in seeds:

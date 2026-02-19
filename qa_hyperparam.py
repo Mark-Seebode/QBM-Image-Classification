@@ -430,12 +430,12 @@ if __name__ == '__main__':
 
         sweep_id_path = "seebode-mark-ludwig-maximilianuniversity-of-munich/NEU-CLS-64 CDQBM/" + SWEEP_ID
         print(sweep_id_path)
-        main_with_args = partial(main, args)
+        #main_with_args = partial(main, args)
         print("Starting sweeping")
-        #main(args, True, "09zz7ww6")
+        main(args, True, "6wv4w77p")
         #main(args, True, "8jzjsoe3")
-        wandb.agent(sweep_id=sweep_id_path, function=main_with_args,
-                    count=100)
+        #wandb.agent(sweep_id=sweep_id_path, function=main_with_args,
+         #           count=100)
 
     else:
         main(args)

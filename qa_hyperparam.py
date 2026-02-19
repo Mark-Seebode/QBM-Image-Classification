@@ -135,7 +135,7 @@ def main(args, resume=True, resume_id="6wv4w77p"):
 
         # for seed 88139577 trained model already exists, so we can load results from there and skip training for that seed
         # load model paramers per epoch run val acc and val auc for that seed and add to epoch_data
-        if resume and resume_id == "8jzjsoe3":
+        if resume:
             train_x, train_y, val_x, val_y, _, _ = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
                                                                               classes=["gg", "rp"], seed=88139577,
                                                                               image_size=(28, 28),

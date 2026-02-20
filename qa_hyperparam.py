@@ -194,9 +194,9 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
         print('QBM trained')
         print(f"Results for seed {seed}: \nACC={acc_list}\n AUC={auc_list}")
 
-        for epoch in range(restart_from_e-1, 20):
-            epoch_data[epoch]['acc_val'].append(acc_list[epoch - (restart_from_e-1)])
-            epoch_data[epoch]['auc_val'].append(auc_list[epoch - (restart_from_e-1)])
+        for i, (acc, auc) in enumerate(zip(acc_list, auc_list)):
+            epoch_data[i + restart_from_e]['acc_val'].append(acc)
+            epoch_data[i + restart_from_e]['auc_val'].append(auc)
 
     return epoch_data
 

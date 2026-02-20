@@ -795,7 +795,7 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
         )
 
 
-def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, sample_count, beta_eff, conv_learning_rate=None, one_hot: bool = False, test_x=None, test_y=None, restart_from_batch_n=1, save_path="out/"):
+def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, sample_count, beta_eff, conv_learning_rate=None, one_hot: bool = False, test_x=None, test_y=None, restart_from_epoch=1,restart_from_batch_n=1, save_path="out/"):
     n = len(train_x)
     epoch_loss_list = []
     auc_list = []
@@ -821,7 +821,8 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
     for epoch in tqdm(range(1, epochs + 1),
                       desc="Epochs",
                       ncols=100, leave=False):
-
+        if restart_from_epoch > 1:
+            true_epoch = epoch + restart_from_epoch
         epoch_loss = 0.0
 
         with tqdm(range(0, n, batch_size),
@@ -857,8 +858,8 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
                             convLabel_bias=conv_label,
                         )
                 except Exception as e:
-                    tqdm.write(f"Error during training at epoch {epoch}, batch {batchnum}: {e}")
-                    model.save_weights(title=f"e{epoch}_b{batchnum}_error_backup")
+                    tqdm.write(f"Error during training at epoch {true_epoch}, batch {batchnum}: {e}")
+                    model.save_weights(title=f"e{true_epoch}_b{batchnum}_error_backup")
                     raise e
                 epoch_loss += loss
                 avg_loss = epoch_loss / (batchnum + 1)
@@ -866,8 +867,8 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
                 batch_bar.set_postfix(loss=f"{avg_loss:.4f}")
                 batchnum += 1
         #train_x, train_y = data_loader.shuffle_images(train_x, train_y, dataset_shuffle_seeds[epoch-1])
-        tqdm.write(f"Epoch {epoch}/{epochs} finished - avg loss: {avg_loss:.4f}")
-        model.save_weights(title=f"e{epoch}_seed{model.seed}", path=save_path)
+        tqdm.write(f"Epoch {true_epoch}/{epochs} finished - avg loss: {avg_loss:.4f}")
+        model.save_weights(title=f"e{true_epoch}_seed{model.seed}", path=save_path)
 
         predictions = []
         probs_all = []

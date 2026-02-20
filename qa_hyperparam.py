@@ -254,7 +254,7 @@ def main(args, resume=True, resume_id="6wv4w77p"):
         if resume:
                 epoch_data = pickup_seed(params_string_for_run, 88139577, epoch_data, dwave_token, new_run_path)
                 print("Loaded results for seed 88139577")
-                epoch_data = pickup_seed(params_string_for_run, 37523562, epoch_data, dwave_token, new_run_path, restart_from_e=15)
+                epoch_data = pickup_seed(params_string_for_run, 37523562, epoch_data, dwave_token, new_run_path, until_epoch=15, restart_from_e=15)
                 print("Loaded results for seed 88139577")
 
         for seed in seeds:

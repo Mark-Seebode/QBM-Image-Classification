@@ -85,6 +85,122 @@ def configure_hyperparams(run):
 #globalcounter = 0
 
 
+def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_path, until_epoch=20, restart_from_e=1):
+    train_x, train_y, val_x, val_y, _, _ = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
+                                                                      classes=["gg", "rp"], seed=seed,
+                                                                      image_size=(28, 28),
+                                                                      contrast_factor=1.5)
+    train_y = np.where(train_y == 0, -1, train_y)
+    train_x, train_y = data_loader.shuffle_images(train_x, train_y, seed)
+    param_string = params_string_for_run + "_seed" + str(seed)
+
+    if isinstance(train_x, np.ndarray):
+        img0 = train_x[0]
+        image_shape = img0.shape[:2]
+    else:
+        image_shape = np.asarray(train_x[0]).shape[:2]
+    num_visible_nodes = int(image_shape[0] * image_shape[1])
+
+    for epoch in range(1, until_epoch + 1):
+        qbm = Conv_Deep_QBM(
+            num_visible_nodes=num_visible_nodes,
+            num_lable_nodes=1,
+            image_shape=image_shape,
+            seed=seed,
+            kernel_size=KERNEL_SIZE,
+            pooling_size=4,
+            pooling_type="deterministic",  # "probabilistic" | "deterministic"
+            num_filter_kernels=NUM_KERNELS,
+            is_recurrent_weights=False,
+            sequential_layer_sizes=SEQUENTIAL_LAYER_SIZES,
+            param_string=param_string,
+            load_path="",
+            stride=1,
+            speicherort=new_run_path,
+            is_restricted=bool(RESTRICTED),
+            hidden_bias_type="shared",
+            solver="Advantage2_system1.11",
+            ising_or_qubo="ising",
+            dwave_token=dwave_token,
+            num_reads=SAMPLE_COUNT,
+            example_image=train_x[0],
+            parallelize=False,
+            centerize=False
+        )
+
+        qbm.load_weights(title=f'e{epoch}_seed{seed}',
+                         path=f'out/{params_string_for_run}/')
+
+        predictions = []
+        probs_all = []
+        for i in tqdm(range(len(val_x)), desc="Predicting on test data", ncols=80, leave=False):
+            run = run_unclamped(
+                qbm, val_x[i],
+                beta_eff=float(1.0),
+                one_hot=bool(False),
+                do_conv_label_bias=True
+            )
+            pred = int(np.argmax(run.probs))
+            predictions.append(pred)
+            probs_all.append(run.probs)
+
+        acc = accuracy_score(val_y, predictions)
+
+        pos_scores = np.array([p[1] for p in probs_all])
+        auc = roc_auc_score(val_y, pos_scores)
+
+        epoch_data[epoch - 1]['acc_val'].append(acc)
+        epoch_data[epoch - 1]['auc_val'].append(auc)
+
+    if restart_from_e > 1:
+        qbm = Conv_Deep_QBM(
+            num_visible_nodes=num_visible_nodes,
+            num_lable_nodes=1,
+            image_shape=image_shape,
+            seed=seed,
+            kernel_size=KERNEL_SIZE,
+            pooling_size=4,
+            pooling_type="deterministic",  # "probabilistic" | "deterministic"
+            num_filter_kernels=NUM_KERNELS,
+            is_recurrent_weights=False,
+            sequential_layer_sizes=SEQUENTIAL_LAYER_SIZES,
+            param_string=param_string,
+            load_path="",
+            stride=1,
+            speicherort=new_run_path,
+            is_restricted=bool(RESTRICTED),
+            hidden_bias_type="shared",
+            solver="Advantage2_system1.11",
+            ising_or_qubo="ising",
+            dwave_token=dwave_token,
+            num_reads=SAMPLE_COUNT,
+            example_image=train_x[0],
+            parallelize=False,
+            centerize=False
+        )
+
+        qbm.load_weights(title=f'e{restart_from_e}_seed{seed}',
+                         path=f'out/{params_string_for_run}/')
+
+        epoch_loss_list, acc_list, auc_list, kernel_change_history = train_model(qbm, train_x, train_y, BATCH_SIZE,
+                                                                                 20 - restart_from_e, LEARNING_RATE,
+                                                                                 SAMPLE_COUNT, 1.0,
+                                                                                 conv_learning_rate=LEARNING_RATE,
+                                                                                 one_hot=False, test_x=val_x,
+                                                                                 test_y=val_y, save_path=new_run_path)
+
+        qbm.save_weights(title=param_string, path=new_run_path)
+        print('QBM trained')
+        print(f"Results for seed {seed}: \nACC={acc_list}\n AUC={auc_list}")
+
+        for epoch in range(restart_from_e-1, 20):
+            epoch_data[epoch]['acc_val'].append(acc_list[epoch])
+            epoch_data[epoch]['auc_val'].append(auc_list[epoch])
+
+    return epoch_data
+
+
+
 
 def main(args, resume=True, resume_id="6wv4w77p"):
     print("Starting current sweep")
@@ -116,7 +232,7 @@ def main(args, resume=True, resume_id="6wv4w77p"):
         metrics_for_all_seeds = [[] for i in range(num_metrics)]
 
 
-        seeds = [37523562, 87634854]
+        seeds = [ 87634854]
 
         epoch_data = defaultdict(lambda: {
             'acc_val': [],
@@ -136,71 +252,10 @@ def main(args, resume=True, resume_id="6wv4w77p"):
         # for seed 88139577 trained model already exists, so we can load results from there and skip training for that seed
         # load model paramers per epoch run val acc and val auc for that seed and add to epoch_data
         if resume:
-            train_x, train_y, val_x, val_y, _, _ = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
-                                                                              classes=["gg", "rp"], seed=88139577,
-                                                                              image_size=(28, 28),
-                                                                              contrast_factor=1.5)
-            train_y = np.where(train_y == 0, -1, train_y)
-            train_x, train_y = data_loader.shuffle_images(train_x, train_y, 88139577)
-            param_string = params_string_for_run + "_seed" + str(88139577)
-
-            if isinstance(train_x, np.ndarray):
-                img0 = train_x[0]
-                image_shape = img0.shape[:2]
-            else:
-                image_shape = np.asarray(train_x[0]).shape[:2]
-            num_visible_nodes = int(image_shape[0] * image_shape[1])
-
-            for epoch in range(1, 21):
-                qbm = Conv_Deep_QBM(
-                    num_visible_nodes=num_visible_nodes,
-                    num_lable_nodes=1,
-                    image_shape=image_shape,
-                    seed=88139577,
-                    kernel_size=KERNEL_SIZE,
-                    pooling_size=4,
-                    pooling_type="deterministic",  # "probabilistic" | "deterministic"
-                    num_filter_kernels=NUM_KERNELS,
-                    is_recurrent_weights=False,
-                    sequential_layer_sizes=SEQUENTIAL_LAYER_SIZES,
-                    param_string=param_string,
-                    load_path="",
-                    stride=1,
-                    speicherort=new_run_path,
-                    is_restricted=bool(RESTRICTED),
-                    hidden_bias_type="shared",
-                    solver="Advantage2_system1.11",
-                    ising_or_qubo="ising",
-                    dwave_token=dwave_token,
-                    num_reads=SAMPLE_COUNT,
-                    example_image=train_x[0],
-                    parallelize=False,
-                    centerize=False
-                )
-
-                qbm.load_weights(title=f'e{epoch}_seed88139577', path='out/_b256_l0.004096951676515361_ks3_nk1_sls8_rTrue_sc10/')
-
-                predictions = []
-                probs_all = []
-                for i in tqdm(range(len(val_x)), desc="Predicting on test data", ncols=80, leave=False):
-                    run = run_unclamped(
-                        qbm, val_x[i],
-                        beta_eff=float(1.0),
-                        one_hot=bool(False),
-                        do_conv_label_bias=True
-                    )
-                    pred = int(np.argmax(run.probs))
-                    predictions.append(pred)
-                    probs_all.append(run.probs)
-
-                acc = accuracy_score(val_y, predictions)
-
-                pos_scores = np.array([p[1] for p in probs_all])
-                auc = roc_auc_score(val_y, pos_scores)
-
-                epoch_data[epoch - 1]['acc_val'].append(acc)
-                epoch_data[epoch- 1]['auc_val'].append(auc)
-            print("Loaded results for seed 88139577")
+                epoch_data = pickup_seed(params_string_for_run, 88139577, epoch_data, dwave_token, new_run_path)
+                print("Loaded results for seed 88139577")
+                epoch_data = pickup_seed(params_string_for_run, 37523562, epoch_data, dwave_token, new_run_path, restart_from_e=15)
+                print("Loaded results for seed 88139577")
 
         for seed in seeds:
             train_x, train_y, val_x, val_y, _, _ = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",

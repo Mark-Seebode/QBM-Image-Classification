@@ -187,7 +187,8 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
                                                                                  SAMPLE_COUNT, 1.0,
                                                                                  conv_learning_rate=LEARNING_RATE,
                                                                                  one_hot=False, test_x=val_x,
-                                                                                 test_y=val_y, save_path=new_run_path)
+                                                                                 test_y=val_y, save_path=new_run_path,
+                                                                                 restart_from_epoch=restart_from_e)
 
         qbm.save_weights(title=param_string, path=new_run_path)
         print('QBM trained')

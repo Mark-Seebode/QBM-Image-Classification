@@ -823,6 +823,8 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
                       ncols=100, leave=False):
         if restart_from_epoch > 1:
             true_epoch = epoch + restart_from_epoch
+        else:
+            true_epoch = epoch
         epoch_loss = 0.0
 
         with tqdm(range(0, n, batch_size),

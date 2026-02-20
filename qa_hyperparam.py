@@ -195,8 +195,8 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
         print(f"Results for seed {seed}: \nACC={acc_list}\n AUC={auc_list}")
 
         for epoch in range(restart_from_e-1, 20):
-            epoch_data[epoch]['acc_val'].append(acc_list[epoch])
-            epoch_data[epoch]['auc_val'].append(auc_list[epoch])
+            epoch_data[epoch]['acc_val'].append(acc_list[epoch - (restart_from_e-1)])
+            epoch_data[epoch]['auc_val'].append(auc_list[epoch - (restart_from_e-1)])
 
     return epoch_data
 

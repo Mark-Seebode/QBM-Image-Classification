@@ -283,8 +283,9 @@ class DWaveAdapter:
         except Exception as e:
             #wait 1 min and try again 5 times in a loop
             print(f"Error during D-Wave sampling: {e}. Retrying in 1 minute...")
+            s = 60
             for i in range(5):
-                time.sleep(60)
+                time.sleep(s)
                 try:
                     self.refresh_connection()
                     embedded_answer = self.solver_backend.sample_bqm(embedded_bqm,
@@ -295,6 +296,8 @@ class DWaveAdapter:
                     break
                 except Exception as e:
                     print(f"Retry {i+1}/5 failed: {e}")
+                    s = 60 * (i + 2)
+                    print(f"Next retry in {s} seconds...")
             else:
                 raise RuntimeError("Failed to sample from D-Wave after 5 retries. Check connection and solver status.")
 

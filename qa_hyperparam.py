@@ -152,6 +152,9 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
         epoch_data[epoch - 1]['acc_val'].append(acc)
         epoch_data[epoch - 1]['auc_val'].append(auc)
 
+        qbm.sampler.client.close()
+        time.sleep(30)
+
     if restart_from_e > 1:
         qbm = Conv_Deep_QBM(
             num_visible_nodes=num_visible_nodes,

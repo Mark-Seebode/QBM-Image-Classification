@@ -261,13 +261,13 @@ class DWaveAdapter:
         directly.
         """
         print("Refreshing connection...")
-        solver_id = self.solver.id
+        solver_id = self.solver
         self.client.close()
         time.sleep(30)
         # get new connection to client
         self.client = Client(token=self.TOKEN, solver=solver_id)
         # make sure to get the same solver_backend from this connection
-        self.solver = self.client.get_solver(name=solver_id)
+        self.solver_backend = self.client.get_solver(name=solver_id)
 
 
     def run_qa_sampling_Dwave(self, embedded_bqm, this_embedding, source_bqm_unembedded, sample_count)-> di.SampleSet:

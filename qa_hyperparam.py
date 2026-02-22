@@ -100,6 +100,8 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
     else:
         image_shape = np.asarray(train_x[0]).shape[:2]
     num_visible_nodes = int(image_shape[0] * image_shape[1])
+    acc_list1 = []
+    auc_list1 = []
 
     for epoch in range(1, until_epoch + 1):
         qbm = Conv_Deep_QBM(
@@ -148,6 +150,8 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
 
         pos_scores = np.array([p[1] for p in probs_all])
         auc = roc_auc_score(val_y, pos_scores)
+        acc_list1.append(acc)
+        auc_list1.append(auc)
 
         epoch_data[epoch - 1]['acc_val'].append(acc)
         epoch_data[epoch - 1]['auc_val'].append(auc)
@@ -201,6 +205,16 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
             epoch_data[i + restart_from_e]['auc_val'].append(auc)
 
         client = qbm.sampler.client
+
+        for acc in acc_list:
+            acc_list1.append(acc)
+        for auc in auc_list:
+            auc_list1.append(auc)
+
+    with open(new_run_path + f"/acc_list_seed{seed}.pkl", "wb") as f:
+        pickle.dump(acc_list, f)
+    with open(new_run_path + f"/auc_list_seed{seed}.pkl", "wb") as f:
+        pickle.dump(auc_list, f)
 
     return epoch_data, client
 

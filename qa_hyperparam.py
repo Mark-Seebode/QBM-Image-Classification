@@ -212,9 +212,9 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
             auc_list1.append(auc)
 
     with open(new_run_path + f"/acc_list_seed{seed}.pkl", "wb") as f:
-        pickle.dump(acc_list, f)
+        pickle.dump(acc_list1, f)
     with open(new_run_path + f"/auc_list_seed{seed}.pkl", "wb") as f:
-        pickle.dump(auc_list, f)
+        pickle.dump(auc_list1, f)
 
     return epoch_data, client
 

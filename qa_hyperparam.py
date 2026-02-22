@@ -21,7 +21,7 @@ from src.model import cdqbm_state
 from src.model.cdqbm_state import Conv_Deep_QBM
 from src.train.pipeline import run_unclamped
 from src.train.train import train_model
-
+from dwave.cloud import Client
 
 def get_averages(list_of_lists):
     array_of_arrays = np.array(list_of_lists)
@@ -85,7 +85,7 @@ def configure_hyperparams(run):
 #globalcounter = 0
 
 
-def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_path, until_epoch=20, restart_from_e=1):
+def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_path, client, until_epoch=20, restart_from_e=1):
     train_x, train_y, val_x, val_y, _, _ = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
                                                                       classes=["gg", "rp"], seed=seed,
                                                                       image_size=(28, 28),
@@ -127,7 +127,7 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
             parallelize=False,
             centerize=False
         )
-
+        qbm.sampler.load_Dwave_client(client)
         qbm.load_weights(title=f'e{epoch}_seed{seed}',
                          path=f'out/{params_string_for_run}/')
 
@@ -152,8 +152,7 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
         epoch_data[epoch - 1]['acc_val'].append(acc)
         epoch_data[epoch - 1]['auc_val'].append(auc)
 
-        qbm.sampler.client.close()
-        time.sleep(30)
+        client = qbm.sampler.client
 
     if restart_from_e > 1:
         qbm = Conv_Deep_QBM(
@@ -181,7 +180,7 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
             parallelize=False,
             centerize=False
         )
-
+        qbm.sampler.load_Dwave_client(client)
         qbm.load_weights(title=f'e{restart_from_e}_seed{seed}',
                          path=f'out/{params_string_for_run}/')
 
@@ -201,7 +200,9 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
             epoch_data[i + restart_from_e]['acc_val'].append(acc)
             epoch_data[i + restart_from_e]['auc_val'].append(auc)
 
-    return epoch_data
+        client = qbm.sampler.client
+
+    return epoch_data, client
 
 
 
@@ -249,6 +250,8 @@ def main(args, resume=False, resume_id="6wv4w77p"):
         except:
             raise Exception("Error loading API tokens. Please ensure the token files exist and contain the correct tokens.")
 
+        client = Client(token=dwave_token, solver="Advantage2_system1.11")
+
         # make new folder in path for this run
         new_run_path = os.path.join(args.path, params_string_for_run)
         os.makedirs(new_run_path, exist_ok=True)
@@ -256,9 +259,9 @@ def main(args, resume=False, resume_id="6wv4w77p"):
         # for seed 88139577 trained model already exists, so we can load results from there and skip training for that seed
         # load model paramers per epoch run val acc and val auc for that seed and add to epoch_data
         if resume:
-                epoch_data = pickup_seed(params_string_for_run, 88139577, epoch_data, dwave_token, new_run_path)
+                epoch_data, client = pickup_seed(params_string_for_run, 88139577, epoch_data, dwave_token, new_run_path, client)
                 print("Loaded results for seed 88139577")
-                epoch_data = pickup_seed(params_string_for_run, 37523562, epoch_data, dwave_token, new_run_path)
+                epoch_data, client = pickup_seed(params_string_for_run, 37523562, epoch_data, dwave_token, new_run_path, client)
                 print("Loaded results for seed 37523562")
                 pass
 
@@ -304,7 +307,7 @@ def main(args, resume=False, resume_id="6wv4w77p"):
                 parallelize=False,
                 centerize=False
             )
-
+            qbm.sampler.load_Dwave_client(client)
             print('QBM created with:\n'
                   f'  active hidden nodes: {qbm.num_hidden_units_per_layer}\n'
                   f'  label nodes: {qbm.num_label_nodes}\n'
@@ -323,11 +326,17 @@ def main(args, resume=False, resume_id="6wv4w77p"):
             print('QBM trained')
             print(f"Results for seed {seed}: \nACC={acc_list}\n AUC={auc_list}")
 
-
+            #save acc and auc list for this seed in a pickle files
+            with open(new_run_path + f"/acc_list_seed{seed}.pkl", "wb") as f:
+                pickle.dump(acc_list, f)
+            with open(new_run_path + f"/auc_list_seed{seed}.pkl", "wb") as f:
+                pickle.dump(auc_list, f)
 
             for epoch in range(20):
                 epoch_data[epoch]['acc_val'].append(acc_list[epoch])
                 epoch_data[epoch]['auc_val'].append(auc_list[epoch])
+
+            client = qbm.sampler.client
 
         epochs_sorted = sorted(epoch_data.keys())
         avg_acc_list = [np.mean(epoch_data[e]['acc_val']) for e in epochs_sorted]
@@ -347,6 +356,8 @@ def main(args, resume=False, resume_id="6wv4w77p"):
         metrics_for_all_seeds[3].append(best_epoch)
         print(f"Loaded results: ACC={best_acc}, AUC={best_auc}, Combined={best_combined} at epoch={best_epoch}")
         print("All seeds finished")
+
+        client.close()
 
         if HYPERPARAM_OPT:
             for metric_index in range(len(metrics_for_all_seeds)):

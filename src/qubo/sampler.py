@@ -138,9 +138,10 @@ class DWaveAdapter:
             self.unclamped_backend = None
             self.algorithm = None
         else:
-            self.client = Client(token=dwave_token, solver=solver)
-            # use an Advantage solver_backend (first generation -> with 5000 Qubits)
-            self.solver_backend = self.client.get_solver(name=solver)
+            # self.client = Client(token=dwave_token, solver=solver)
+            # # use an Advantage solver_backend (first generation -> with 5000 Qubits)
+            # self.solver_backend = self.client.get_solver(name=solver)
+            pass
 
 
     def sample_Q(self, Q: np.ndarray, label=None) -> np.ndarray:
@@ -352,6 +353,10 @@ class DWaveAdapter:
             self.embedding_clamped = embedding
 
         return embedding
+
+    def load_Dwave_client(self, client):
+        self.client = client
+        self.solver_backend = self.client.get_solver(name=self.solver)
 
 
 

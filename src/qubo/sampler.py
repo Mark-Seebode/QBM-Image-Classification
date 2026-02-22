@@ -296,7 +296,7 @@ class DWaveAdapter:
                     break
                 except Exception as e:
                     print(f"Retry {i+1}/5 failed: {e}")
-                    s = 60 * (i + 2)
+                    s = 60 * (i + 3)
                     print(f"Next retry in {s} seconds...")
             else:
                 raise RuntimeError("Failed to sample from D-Wave after 5 retries. Check connection and solver status.")

@@ -13,6 +13,7 @@ from sklearn.metrics import (
     recall_score, roc_auc_score, ConfusionMatrixDisplay
 )
 from typing import Any
+import time
 
 class AvgConfig:
     biases_conv_units: list
@@ -900,6 +901,8 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
 
         #print("\nacc:", acc )
         #print("auc:", auc)
+        model.sampler.client.close()
+        time.sleep(30)
 
 
     return epoch_loss_list, acc_list, auc_list, kernel_change_history

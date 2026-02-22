@@ -233,7 +233,7 @@ def main(args, resume=False, resume_id="6wv4w77p"):
         metrics_for_all_seeds = [[] for i in range(num_metrics)]
 
 
-        seeds = [88139577,  37523562, 87634854]
+        seeds = [87634854]
 
         epoch_data = defaultdict(lambda: {
             'acc_val': [],
@@ -253,10 +253,10 @@ def main(args, resume=False, resume_id="6wv4w77p"):
         # for seed 88139577 trained model already exists, so we can load results from there and skip training for that seed
         # load model paramers per epoch run val acc and val auc for that seed and add to epoch_data
         if resume:
-                #epoch_data = pickup_seed(params_string_for_run, 88139577, epoch_data, dwave_token, new_run_path)
-                #print("Loaded results for seed 88139577")
-                #epoch_data = pickup_seed(params_string_for_run, 37523562, epoch_data, dwave_token, new_run_path, until_epoch=15, restart_from_e=15)
-                #print("Loaded results for seed 88139577")
+                epoch_data = pickup_seed(params_string_for_run, 88139577, epoch_data, dwave_token, new_run_path)
+                print("Loaded results for seed 88139577")
+                epoch_data = pickup_seed(params_string_for_run, 37523562, epoch_data, dwave_token, new_run_path)
+                print("Loaded results for seed 37523562")
                 pass
 
         for seed in seeds:
@@ -490,12 +490,12 @@ if __name__ == '__main__':
 
         sweep_id_path = "seebode-mark-ludwig-maximilianuniversity-of-munich/NEU-CLS-64 CDQBM/" + SWEEP_ID
         print(sweep_id_path)
-        main_with_args = partial(main, args)
+        #main_with_args = partial(main, args)
         print("Starting sweeping")
         #main(args, True, "6wv4w77p")
-        #main(args, True, "8jzjsoe3")
-        wandb.agent(sweep_id=sweep_id_path, function=main_with_args,
-                    count=100)
+        main(args, True, "o44svo5q")
+        #wandb.agent(sweep_id=sweep_id_path, function=main_with_args,
+         #           count=100)
 
     else:
         main(args)

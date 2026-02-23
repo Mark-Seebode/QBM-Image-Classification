@@ -219,10 +219,10 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
     return epoch_data, client
 
 
-def load_acc_auc_list(params_string_for_run, seed, new_run_path):
-    with open(new_run_path+ params_string_for_run  + f"/acc_list_seed{seed}.pkl", "rb") as f:
+def load_acc_auc_list( seed, new_run_path):
+    with open(new_run_path  + f"/acc_list_seed{seed}.pkl", "rb") as f:
         acc_list = pickle.load(f)
-    with open(new_run_path + params_string_for_run + f"/auc_list_seed{seed}.pkl", "rb") as f:
+    with open(new_run_path + f"/auc_list_seed{seed}.pkl", "rb") as f:
         auc_list = pickle.load(f)
     return acc_list, auc_list
 
@@ -285,12 +285,12 @@ def main(args, resume=False, resume_id="6wv4w77p"):
                 #print("Loaded results for seed 88139577")
                 #epoch_data, client = pickup_seed(params_string_for_run, 37523562, epoch_data, dwave_token, new_run_path, client)
                 #print("Loaded results for seed 37523562")
-                acc_list88139577, auc_list88139577 = load_acc_auc_list(params_string_for_run, 88139577, new_run_path)
+                acc_list88139577, auc_list88139577 = load_acc_auc_list(88139577, new_run_path)
                 for epoch in range(len(acc_list88139577)):
                     epoch_data[epoch]['acc_val'].append(acc_list88139577[epoch])
                     epoch_data[epoch]['auc_val'].append(acc_list88139577[epoch])
                 print("Loaded results for seed 88139577")
-                acc_list37523562, auc_list37523562 = load_acc_auc_list(params_string_for_run, 37523562, new_run_path)
+                acc_list37523562, auc_list37523562 = load_acc_auc_list( 37523562, new_run_path)
                 for epoch in range(len(acc_list37523562)):
                     epoch_data[epoch]['acc_val'].append(acc_list37523562[epoch])
                     epoch_data[epoch]['auc_val'].append(acc_list37523562[epoch])

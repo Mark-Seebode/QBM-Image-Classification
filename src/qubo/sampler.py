@@ -116,7 +116,7 @@ class DWaveAdapter:
         self.embedding = embedding
         self.num_reads = num_reads
         self.seed = seed
-        self.TOKEN = api_token
+        self.TOKEN = dwave_token
         self.luna = luna
         self.embedding_clamped = None
         self.embedding_unclamped = None

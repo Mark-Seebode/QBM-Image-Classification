@@ -109,7 +109,6 @@ class LocalSASampler:
 
 
 class DWaveAdapter:
-    # TODO: PQA support
     def __init__(self, solver, api_token: str, dwave_token, groupQpuToken_name: str, num_reads: int, embedding=None, seed: int | None = None, luna: bool = False, ising_or_qubo = "qubo"):
         self.solver_backend = solver
         self.solver = solver
@@ -284,7 +283,7 @@ class DWaveAdapter:
         except Exception as e:
             #wait 1 min and try again 5 times in a loop
             print(f"Error during D-Wave sampling: {e}. Retrying in 1 minute...")
-            s = 60
+            s = 300
             for i in range(5):
                 time.sleep(s)
                 try:
@@ -297,7 +296,7 @@ class DWaveAdapter:
                     break
                 except Exception as e:
                     print(f"Retry {i+1}/5 failed: {e}")
-                    s = 60 * (i + 3)
+                    s = 300 * (i + 1)
                     print(f"Next retry in {s} seconds...")
             else:
                 raise RuntimeError("Failed to sample from D-Wave after 5 retries. Check connection and solver status.")
@@ -363,4 +362,3 @@ class DWaveAdapter:
 
 
 
-# TODO: add embedding

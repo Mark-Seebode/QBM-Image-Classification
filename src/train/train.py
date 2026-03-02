@@ -863,7 +863,7 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
                         )
                 except Exception as e:
                     tqdm.write(f"Error during training at epoch {true_epoch}, batch {batchnum}: {e}")
-                    model.save_weights(title=f"e{true_epoch}_b{batchnum}_error_backup")
+                    model.save_weights(title=f"e{true_epoch}_b{batchnum}_s{model.seed}_error_backup")
                     # save acc and auc lists up to this point as pickle files
                     with open(f"{save_path}acc_list_backup{model.seed}.pkl", "wb") as f:
                         pickle.dump(acc_list, f)

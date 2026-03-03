@@ -315,12 +315,12 @@ def main(args, resume=False, resume_id="6wv4w77p"):
                 image_shape = np.asarray(train_x[0]).shape[:2]
             num_visible_nodes = int(image_shape[0] * image_shape[1])
 
-            acc_list = load_metric_list(f"/_b32_l0.02741409597121392_ks5_nk4_sls4_rTrue_sc140acc_list_backup87634854.pkl", new_run_path)
-            auc_list = load_metric_list(f"/_b32_l0.02741409597121392_ks5_nk4_sls4_rTrue_sc140auc_list_backup87634854.pkl", new_run_path)
-            for epoch in range(len(acc_list)):
-                epoch_data[epoch]['acc_val'].append(acc_list[epoch])
-                epoch_data[epoch]['auc_val'].append(auc_list[epoch])
-            print("Loaded results for seed 87634854")
+            # acc_list = load_metric_list(f"/_b32_l0.02741409597121392_ks5_nk4_sls4_rTrue_sc140acc_list_backup87634854.pkl", new_run_path)
+            # auc_list = load_metric_list(f"/_b32_l0.02741409597121392_ks5_nk4_sls4_rTrue_sc140auc_list_backup87634854.pkl", new_run_path)
+            # for epoch in range(len(acc_list)):
+            #     epoch_data[epoch]['acc_val'].append(acc_list[epoch])
+            #     epoch_data[epoch]['auc_val'].append(auc_list[epoch])
+            # print("Loaded results for seed 87634854")
 
             print('Creating QBM...')
             qbm = Conv_Deep_QBM(
@@ -348,8 +348,8 @@ def main(args, resume=False, resume_id="6wv4w77p"):
                 parallelize=False,
                 centerize=False
             )
-            epoch_to_start_from = len(acc_list)
-            qbm.load_weights(title=f"e{1}_seed87634854", path=new_run_path)
+            #epoch_to_start_from = len(acc_list)
+            #qbm.load_weights(title=f"e{1}_seed87634854", path=new_run_path)
             qbm.sampler.load_Dwave_client(client)
             print('QBM created with:\n'
                   f'  active hidden nodes: {qbm.num_hidden_units_per_layer}\n'
@@ -360,14 +360,14 @@ def main(args, resume=False, resume_id="6wv4w77p"):
             print('Training QBM...')
             # qbm.load_weights("e11_b22_error_backup", "out/CDQBM_QuCUN/")
             epoch_loss_list, acc_list, auc_list, kernel_change_history = train_model(qbm, train_x, train_y, BATCH_SIZE,
-                                                                                     20-epoch_to_start_from, LEARNING_RATE,
+                                                                                     20, LEARNING_RATE,
                                                                                      SAMPLE_COUNT, 1.0,
                                                                                      conv_learning_rate=LEARNING_RATE,
                                                                                      one_hot=False, test_x=val_x,
-                                                                                     test_y=val_y, save_path=new_run_path,
-                                                                                     loaded_acc_list=acc_list,
-                                                                                     loaded_auc_list=auc_list,
-                                                                                     restart_from_epoch=epoch_to_start_from,)
+                                                                                     test_y=val_y, save_path=new_run_path,)
+                                                                                     #loaded_acc_list=acc_list,
+                                                                                     #oaded_auc_list=auc_list,
+                                                                                     #restart_from_epoch=epoch_to_start_from,)
             qbm.save_weights(title=param_string, path=new_run_path)
             print('QBM trained')
             print(f"Results for seed {seed}: \nACC={acc_list}\n AUC={auc_list}")

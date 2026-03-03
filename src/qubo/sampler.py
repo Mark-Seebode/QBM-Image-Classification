@@ -244,7 +244,18 @@ class DWaveAdapter:
                                         )
                                     )
 
-        answer = self.run_qa_sampling_Dwave(embedded_q, embedding, qubo_as_bqm, sample_count)
+        try:
+            answer = self.run_qa_sampling_Dwave(embedded_q, embedding, qubo_as_bqm, sample_count)
+        except Exception as e:
+            print(f"Error during sampling: {e}. Retrying with new embedding...")
+            embedding = self.find_embedding_with_client(qubo_as_bqm, False, label)
+            embedded_q = embed_bqm(source_bqm=qubo_as_bqm,
+                                   embedding=EmbeddedStructure(
+                                       target_edges=self.solver_backend.edges,
+                                       embedding=embedding
+                                   )
+                                   )
+            answer = self.run_qa_sampling_Dwave(embedded_q, embedding, qubo_as_bqm, sample_count)
         samples = answer.record.sample.tolist()
         # if self.current_batch_index == 50:
         #print(samples)
@@ -298,11 +309,10 @@ class DWaveAdapter:
                     if i == 4:
                         print("Last retry. Wait 1 hour...")
                         self.refresh_connection()
-                        s = 3600
-                    else:
-                        print(f"Retry {i+1}/6 failed: {e}")
-                        s = 300 * (i + 1)
-                        print(f"Next retry in {s} seconds...")
+
+                    print(f"Retry {i+1}/6 failed: {e}")
+                    s = 300 * (i + 1)
+                    print(f"Next retry in {s} seconds...")
             else:
                 raise RuntimeError("Failed to sample from D-Wave after 6 retries")
 

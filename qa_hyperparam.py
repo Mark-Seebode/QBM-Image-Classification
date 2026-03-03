@@ -349,7 +349,7 @@ def main(args, resume=False, resume_id="6wv4w77p"):
                 centerize=False
             )
             epoch_to_start_from = len(acc_list)
-            qbm.load_weights(title=f"e{epoch_to_start_from}_seed87634854", path=new_run_path)
+            qbm.load_weights(title=f"e{1}_seed87634854", path=new_run_path)
             qbm.sampler.load_Dwave_client(client)
             print('QBM created with:\n'
                   f'  active hidden nodes: {qbm.num_hidden_units_per_layer}\n'
@@ -366,7 +366,8 @@ def main(args, resume=False, resume_id="6wv4w77p"):
                                                                                      one_hot=False, test_x=val_x,
                                                                                      test_y=val_y, save_path=new_run_path,
                                                                                      loaded_acc_list=acc_list,
-                                                                                     loaded_auc_list=auc_list,)
+                                                                                     loaded_auc_list=auc_list,
+                                                                                     restart_from_epoch=epoch_to_start_from,)
             qbm.save_weights(title=param_string, path=new_run_path)
             print('QBM trained')
             print(f"Results for seed {seed}: \nACC={acc_list}\n AUC={auc_list}")

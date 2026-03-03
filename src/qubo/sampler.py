@@ -287,7 +287,7 @@ class DWaveAdapter:
             for i in range(6):
                 time.sleep(s)
                 try:
-                    self.refresh_connection()
+                    #self.refresh_connection()
                     embedded_answer = self.solver_backend.sample_bqm(embedded_bqm,
                                                                      num_reads=sample_count,
                                                                      answer_mode='raw'
@@ -297,6 +297,7 @@ class DWaveAdapter:
                 except Exception as e:
                     if i == 4:
                         print("Last retry. Wait 1 hour...")
+                        self.refresh_connection()
                         s = 3600
                     else:
                         print(f"Retry {i+1}/6 failed: {e}")

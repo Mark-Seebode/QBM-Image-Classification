@@ -906,7 +906,7 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
         auc_list.append(auc)
         acc_list.append(acc)
 
-        model.sampler.refresh_connection()
+        #model.sampler.refresh_connection()
 
 
         #print("\nacc:", acc )

@@ -349,7 +349,7 @@ def main(args, resume=False, resume_id="6wv4w77p"):
                 centerize=False
             )
             epoch_to_start_from = len(acc_list)
-            qbm.load_weights(title=f"e{epoch_to_start_from}_seed87634854.pkl", path=new_run_path)
+            qbm.load_weights(title=f"e{epoch_to_start_from}_seed87634854", path=new_run_path)
             qbm.sampler.load_Dwave_client(client)
             print('QBM created with:\n'
                   f'  active hidden nodes: {qbm.num_hidden_units_per_layer}\n'

@@ -797,11 +797,12 @@ def get_average_configuration_single(model: Conv_Deep_QBM, samples, x_input: np.
         )
 
 
-def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, sample_count, beta_eff, conv_learning_rate=None, one_hot: bool = False, test_x=None, test_y=None, restart_from_epoch=1,restart_from_batch_n=1, save_path="out/"):
+def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, sample_count, beta_eff, conv_learning_rate=None, one_hot: bool = False, test_x=None, test_y=None, restart_from_epoch=1,restart_from_batch_n=1, save_path="out/", loaded_acc_list=None, loaded_auc_list=None):
     n = len(train_x)
     epoch_loss_list = []
-    auc_list = []
-    acc_list = []
+
+    auc_list = loaded_auc_list if loaded_auc_list is not None else []
+    acc_list = loaded_acc_list if loaded_acc_list is not None else []
 
     kernel_change_history = []
     sample_change_history = []
@@ -865,9 +866,9 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
                     tqdm.write(f"Error during training at epoch {true_epoch}, batch {batchnum}: {e}")
                     model.save_weights(title=f"e{true_epoch}_b{batchnum}_s{model.seed}_error_backup")
                     # save acc and auc lists up to this point as pickle files
-                    with open(f"{save_path}acc_list_backup{model.seed}.pkl", "wb") as f:
+                    with open(f"{save_path}/acc_list_backup{model.seed}.pkl", "wb") as f:
                         pickle.dump(acc_list, f)
-                    with open(f"{save_path}auc_list_backup{model.seed}.pkl", "wb") as f:
+                    with open(f"{save_path}/auc_list_backup{model.seed}.pkl", "wb") as f:
                         pickle.dump(auc_list, f)
                     raise e
                 epoch_loss += loss
@@ -904,6 +905,9 @@ def train_model(model:Conv_Deep_QBM, train_x, train_y, batch_size, epochs, lr, s
             auc = roc_auc_score(Y_true, np.stack(probs_all, axis=0), average="macro", multi_class="ovr")
         auc_list.append(auc)
         acc_list.append(acc)
+
+        model.sampler.refresh_connection()
+
 
         #print("\nacc:", acc )
         #print("auc:", auc)

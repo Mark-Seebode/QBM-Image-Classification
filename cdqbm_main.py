@@ -178,7 +178,7 @@ def main(seed=19, solver="SA", sample_count=100,
 
     print('Training QBM...')
     #qbm.load_weights("e11_b22_error_backup", "out/CDQBM_QuCUN/")
-    epoch_loss_list, acc_list, auc_list, kernel_change_history = train_model(qbm, train_x, train_y, batch_size, epochs, learning_rate, sample_count, beta_eff, conv_learning_rate=conv_learning_rate, one_hot=one_hot, test_x=test_x, test_y=test_y, restart_from_batch_n=22)
+    epoch_loss_list, acc_list, auc_list, kernel_change_history = train_model(qbm, train_x, train_y, batch_size, epochs, learning_rate, sample_count, beta_eff, conv_learning_rate=conv_learning_rate, one_hot=one_hot, test_x=test_x, test_y=test_y)
     #qbm.save_weights(title=name, path=save)
     print('QBM trained')
 
@@ -255,7 +255,7 @@ if __name__ == '__main__':
                         help='Seed for RNG')
 
     parser.add_argument('-sc', '--sample_count',
-                        default=100,
+                        default=30,
                         type=int,
                         help='Number of samples to take from the solver_backend (reads)')
 
@@ -265,7 +265,7 @@ if __name__ == '__main__':
                         help='Num sweeps for SA (ignored for QPU)')
 
     parser.add_argument('--solver',
-                        default='Advantage2_system1.11',
+                        default='SA',
                         type=str,
                         help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system1.11')")
 
@@ -307,7 +307,7 @@ if __name__ == '__main__':
     parser.add_argument("--sequential_layer_sizes",
                         type=int,
                         nargs="+",
-                        default=[16, 8],
+                        default=[4],
                         help="List of sequential layer sizes",
     )
 

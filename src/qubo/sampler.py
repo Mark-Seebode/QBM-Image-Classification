@@ -262,7 +262,7 @@ class DWaveAdapter:
         print("Refreshing connection...")
         solver_id = self.solver
         self.client.close()
-        time.sleep(30)
+        time.sleep(300)
         # get new connection to client
         self.client = Client(token=self.TOKEN, solver=solver_id)
         # make sure to get the same solver_backend from this connection
@@ -284,7 +284,7 @@ class DWaveAdapter:
             #wait 1 min and try again 5 times in a loop
             print(f"Error during D-Wave sampling: {e}. Retrying in 1 minute...")
             s = 300
-            for i in range(5):
+            for i in range(6):
                 time.sleep(s)
                 try:
                     self.refresh_connection()
@@ -295,11 +295,15 @@ class DWaveAdapter:
                     self.qpu_time_used += embedded_answer.info['timing']['qpu_access_time']
                     break
                 except Exception as e:
-                    print(f"Retry {i+1}/5 failed: {e}")
-                    s = 300 * (i + 1)
-                    print(f"Next retry in {s} seconds...")
+                    if i == 4:
+                        print("Last retry. Wait 1 hour...")
+                        s = 3600
+                    else:
+                        print(f"Retry {i+1}/6 failed: {e}")
+                        s = 300 * (i + 1)
+                        print(f"Next retry in {s} seconds...")
             else:
-                raise RuntimeError("Failed to sample from D-Wave after 5 retries. Check connection and solver status.")
+                raise RuntimeError("Failed to sample from D-Wave after 6 retries")
 
 
         answer = unembed_sampleset(target_sampleset=embedded_answer,

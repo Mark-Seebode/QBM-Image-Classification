@@ -219,12 +219,11 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
     return epoch_data, client
 
 
-def load_acc_auc_list( seed, new_run_path):
-    with open(new_run_path  + f"/acc_list_seed{seed}.pkl", "rb") as f:
-        acc_list = pickle.load(f)
-    with open(new_run_path + f"/auc_list_seed{seed}.pkl", "rb") as f:
-        auc_list = pickle.load(f)
-    return acc_list, auc_list
+def load_metric_list(name, new_run_path):
+    with open(new_run_path  + name, "rb") as f:
+        metric_list = pickle.load(f)
+
+    return metric_list
 
 
 
@@ -285,15 +284,18 @@ def main(args, resume=False, resume_id="6wv4w77p"):
                 #print("Loaded results for seed 88139577")
                 #epoch_data, client = pickup_seed(params_string_for_run, 37523562, epoch_data, dwave_token, new_run_path, client)
                 #print("Loaded results for seed 37523562")
-                acc_list88139577, auc_list88139577 = load_acc_auc_list(88139577, new_run_path)
+                acc_list88139577 = load_metric_list(f"/acc_list_seed{88139577}.pkl", new_run_path)
+                auc_list88139577 = load_metric_list(f"/auc_list_seed{88139577}.pkl", new_run_path)
                 for epoch in range(len(acc_list88139577)):
                     epoch_data[epoch]['acc_val'].append(acc_list88139577[epoch])
-                    epoch_data[epoch]['auc_val'].append(acc_list88139577[epoch])
+                    epoch_data[epoch]['auc_val'].append(auc_list88139577[epoch])
                 print("Loaded results for seed 88139577")
-                acc_list37523562, auc_list37523562 = load_acc_auc_list( 37523562, new_run_path)
+
+                acc_list37523562 = load_metric_list(f"/acc_list_seed{37523562}.pkl", new_run_path)
+                auc_list37523562 = load_metric_list(f"/auc_list_seed{37523562}.pkl", new_run_path)
                 for epoch in range(len(acc_list37523562)):
                     epoch_data[epoch]['acc_val'].append(acc_list37523562[epoch])
-                    epoch_data[epoch]['auc_val'].append(acc_list37523562[epoch])
+                    epoch_data[epoch]['auc_val'].append(auc_list37523562[epoch])
                 print("Loaded results for seed 37523562")
 
 
@@ -312,6 +314,13 @@ def main(args, resume=False, resume_id="6wv4w77p"):
             else:
                 image_shape = np.asarray(train_x[0]).shape[:2]
             num_visible_nodes = int(image_shape[0] * image_shape[1])
+
+            acc_list = load_metric_list(f"/_b32_l0.02741409597121392_ks5_nk4_sls4_rTrue_sc140acc_list_backup87634854.pkl", new_run_path)
+            auc_list = load_metric_list(f"/_b32_l0.02741409597121392_ks5_nk4_sls4_rTrue_sc140auc_list_backup87634854.pkl", new_run_path)
+            for epoch in range(len(acc_list)):
+                epoch_data[epoch]['acc_val'].append(acc_list[epoch])
+                epoch_data[epoch]['auc_val'].append(auc_list[epoch])
+            print("Loaded results for seed 87634854")
 
             print('Creating QBM...')
             qbm = Conv_Deep_QBM(
@@ -339,6 +348,8 @@ def main(args, resume=False, resume_id="6wv4w77p"):
                 parallelize=False,
                 centerize=False
             )
+            epoch_to_start_from = len(acc_list)
+            qbm.load_weights(title=f"e{epoch_to_start_from}_seed87634854.pkl", path=new_run_path)
             qbm.sampler.load_Dwave_client(client)
             print('QBM created with:\n'
                   f'  active hidden nodes: {qbm.num_hidden_units_per_layer}\n'
@@ -349,11 +360,13 @@ def main(args, resume=False, resume_id="6wv4w77p"):
             print('Training QBM...')
             # qbm.load_weights("e11_b22_error_backup", "out/CDQBM_QuCUN/")
             epoch_loss_list, acc_list, auc_list, kernel_change_history = train_model(qbm, train_x, train_y, BATCH_SIZE,
-                                                                                     20, LEARNING_RATE,
+                                                                                     20-epoch_to_start_from, LEARNING_RATE,
                                                                                      SAMPLE_COUNT, 1.0,
                                                                                      conv_learning_rate=LEARNING_RATE,
                                                                                      one_hot=False, test_x=val_x,
-                                                                                     test_y=val_y, save_path=new_run_path)
+                                                                                     test_y=val_y, save_path=new_run_path,
+                                                                                     loaded_acc_list=acc_list,
+                                                                                     loaded_auc_list=auc_list,)
             qbm.save_weights(title=param_string, path=new_run_path)
             print('QBM trained')
             print(f"Results for seed {seed}: \nACC={acc_list}\n AUC={auc_list}")

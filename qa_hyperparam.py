@@ -340,7 +340,7 @@ def main(args, resume=False, resume_id="6wv4w77p"):
                 speicherort=new_run_path,
                 is_restricted=bool(RESTRICTED),
                 hidden_bias_type="shared",
-                solver="Advantage2_system1.11",
+                solver="Advantage2_system1.12",
                 ising_or_qubo="ising",
                 dwave_token=dwave_token,
                 num_reads=SAMPLE_COUNT,

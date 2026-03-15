@@ -258,7 +258,7 @@ def main(args, resume=False, resume_id="6wv4w77p"):
         metrics_for_all_seeds = [[] for i in range(num_metrics)]
 
 
-        seeds = []
+        seeds = [88139577, 37523562, 87634854]
 
         epoch_data = defaultdict(lambda: {
             'acc_val': [],
@@ -280,23 +280,24 @@ def main(args, resume=False, resume_id="6wv4w77p"):
         # for seed 88139577 trained model already exists, so we can load results from there and skip training for that seed
         # load model paramers per epoch run val acc and val auc for that seed and add to epoch_data
         if resume:
-                epoch_data, client = pickup_seed(params_string_for_run, 87634854, epoch_data, dwave_token, new_run_path, client, until_epoch=18, restart_from_e=18)
-                print("Loaded results for seed 87634854")
-                #epoch_data, client = pickup_seed(params_string_for_run, 37523562, epoch_data, dwave_token, new_run_path, client)
-                #print("Loaded results for seed 37523562")
-                acc_list88139577 = load_metric_list(f"/acc_list_seed{88139577}.pkl", new_run_path)
-                auc_list88139577 = load_metric_list(f"/auc_list_seed{88139577}.pkl", new_run_path)
-                for epoch in range(len(acc_list88139577)):
-                    epoch_data[epoch]['acc_val'].append(acc_list88139577[epoch])
-                    epoch_data[epoch]['auc_val'].append(auc_list88139577[epoch])
-                print("Loaded results for seed 88139577")
-                #
-                acc_list37523562 = load_metric_list(f"/acc_list_seed{37523562}.pkl", new_run_path)
-                auc_list37523562 = load_metric_list(f"/auc_list_seed{37523562}.pkl", new_run_path)
-                for epoch in range(len(acc_list37523562)):
-                    epoch_data[epoch]['acc_val'].append(acc_list37523562[epoch])
-                    epoch_data[epoch]['auc_val'].append(auc_list37523562[epoch])
-                print("Loaded results for seed 37523562")
+            pass
+                # epoch_data, client = pickup_seed(params_string_for_run, 87634854, epoch_data, dwave_token, new_run_path, client, until_epoch=18, restart_from_e=18)
+                # print("Loaded results for seed 87634854")
+                # #epoch_data, client = pickup_seed(params_string_for_run, 37523562, epoch_data, dwave_token, new_run_path, client)
+                # #print("Loaded results for seed 37523562")
+                # acc_list88139577 = load_metric_list(f"/acc_list_seed{88139577}.pkl", new_run_path)
+                # auc_list88139577 = load_metric_list(f"/auc_list_seed{88139577}.pkl", new_run_path)
+                # for epoch in range(len(acc_list88139577)):
+                #     epoch_data[epoch]['acc_val'].append(acc_list88139577[epoch])
+                #     epoch_data[epoch]['auc_val'].append(auc_list88139577[epoch])
+                # print("Loaded results for seed 88139577")
+                # #
+                # acc_list37523562 = load_metric_list(f"/acc_list_seed{37523562}.pkl", new_run_path)
+                # auc_list37523562 = load_metric_list(f"/auc_list_seed{37523562}.pkl", new_run_path)
+                # for epoch in range(len(acc_list37523562)):
+                #     epoch_data[epoch]['acc_val'].append(acc_list37523562[epoch])
+                #     epoch_data[epoch]['auc_val'].append(auc_list37523562[epoch])
+                # print("Loaded results for seed 37523562")
 
 
 
@@ -551,12 +552,12 @@ if __name__ == '__main__':
 
         sweep_id_path = "seebode-mark-ludwig-maximilianuniversity-of-munich/NEU-CLS-64 CDQBM/" + SWEEP_ID
         print(sweep_id_path)
-        #main_with_args = partial(main, args)
+        main_with_args = partial(main, args)
         print("Starting sweeping")
         #main(args, True, "6wv4w77p")
-        main(args, True, "fn1lpezt")
-        #wandb.agent(sweep_id=sweep_id_path, function=main_with_args,
-         #           count=100)
+        #main(args, True, "fn1lpezt")
+        wandb.agent(sweep_id=sweep_id_path, function=main_with_args,
+                   count=100)
 
     else:
         main(args)

@@ -271,7 +271,7 @@ def main(args, resume=False, resume_id="6wv4w77p"):
         except:
             raise Exception("Error loading API tokens. Please ensure the token files exist and contain the correct tokens.")
 
-        client = Client(token=dwave_token, solver="Advantage2_system1.11")
+        client = Client(token=dwave_token, solver="Advantage2_system1.13")
 
         # make new folder in path for this run
         new_run_path = os.path.join(args.path, params_string_for_run)
@@ -342,7 +342,7 @@ def main(args, resume=False, resume_id="6wv4w77p"):
                 speicherort=new_run_path,
                 is_restricted=bool(RESTRICTED),
                 hidden_bias_type="shared",
-                solver="Advantage2_system1.12",
+                solver="Advantage2_system1.13",
                 ising_or_qubo="ising",
                 dwave_token=dwave_token,
                 num_reads=SAMPLE_COUNT,

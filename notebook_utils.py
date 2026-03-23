@@ -117,3 +117,14 @@ def process_neu_cls_images(
 
     return X_train, y_train, X_val, y_val, X_test, y_test
 
+
+def prepare_label_batch(model, one_hot, Y):
+    if one_hot:
+        lab_batch = np.zeros((len(Y), model.num_label_nodes), dtype=float)
+        for idx, yy in enumerate(Y):
+            lab_batch[idx, int(yy)] = 1.0
+    else:
+        lab_batch = np.array([[int(yy)] for yy in Y], dtype=float)
+
+    return lab_batch
+

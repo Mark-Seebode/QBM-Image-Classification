@@ -137,10 +137,9 @@ class DWaveAdapter:
             self.unclamped_backend = None
             self.algorithm = None
         else:
-            # self.client = Client(token=dwave_token, solver=solver)
+            self.client = Client(token=dwave_token, solver=solver)
             # # use an Advantage solver_backend (first generation -> with 5000 Qubits)
-            # self.solver_backend = self.client.get_solver(name=solver)
-            pass
+            self.solver_backend = self.client.get_solver(name=solver)
 
 
     def sample_Q(self, Q: np.ndarray, label=None) -> np.ndarray:
@@ -332,6 +331,136 @@ class DWaveAdapter:
 
         return np.array(samples)
 
+    def plot_physical_embedding(self, embedding, bqm, outfile):
+        import matplotlib.pyplot as plt
+        import networkx as nx
+        import numpy as np
+        import dwave_networkx
+        from matplotlib.lines import Line2D
+
+        # Select hardware graph
+        if self.solver in ["Advantage_system4.1", "Advantage_system7.1"]:
+            hardware = dwave_networkx.pegasus_graph(16)
+            pos = dwave_networkx.pegasus_layout(hardware)
+        elif self.solver == "Advantage2_system1.12":
+            hardware = dwave_networkx.zephyr_graph(16, 4)
+            pos = dwave_networkx.zephyr_layout(hardware)
+        else:
+            raise ValueError(f"Unsupported solver: {self.solver}")
+
+        # Build logical graph (for filtering real couplers)
+        if bqm.quadratic == {}:
+            logical_edges = set()
+        else:
+            logical_edges = set(bqm.quadratic.keys())
+            logical_edges |= {(v, u) for u, v in logical_edges}
+
+        # Used qubits
+        used_qubits = {q for chain in embedding.values() for q in chain}
+
+        # Map physical -> logical
+        phys_to_logical = {}
+        for var, chain in embedding.items():
+            for q in chain:
+                phys_to_logical[q] = var
+
+        # Classify edges
+        chain_edges = []
+        logical_couplers = []
+        unused_edges = []
+
+        for u, v in hardware.edges():
+            if u in used_qubits and v in used_qubits:
+                lu = phys_to_logical[u]
+                lv = phys_to_logical[v]
+
+                if lu == lv:
+                    chain_edges.append((u, v))
+                elif (lu, lv) in logical_edges:
+                    logical_couplers.append((u, v))
+                else:
+                    unused_edges.append((u, v))
+            else:
+                unused_edges.append((u, v))
+
+        # Colors per logical variable
+        cmap = plt.get_cmap("tab20")
+        var_list = list(embedding.keys())
+        var_color = {var: cmap(i % 20) for i, var in enumerate(var_list)}
+
+        node_colors = []
+        for q in hardware.nodes():
+            if q in used_qubits:
+                node_colors.append(var_color[phys_to_logical[q]])
+            else:
+                node_colors.append((0.7, 0.7, 0.7, 0.15))  # very faint
+
+        # Plot
+        fig, ax = plt.subplots(figsize=(10, 10))
+
+        # 1. Draw ALL edges faint (background hardware)
+        nx.draw_networkx_edges(
+            hardware, pos,
+            ax=ax,
+            edgelist=unused_edges,
+            width=0.3,
+            alpha=0.05
+        )
+
+        # 2. Logical couplers (medium)
+        nx.draw_networkx_edges(
+            hardware, pos,
+            ax=ax,
+            edgelist=logical_couplers,
+            width=1.5,
+            alpha=0.7
+        )
+
+        # 3. Chain couplers (thick)
+        nx.draw_networkx_edges(
+            hardware, pos,
+            ax=ax,
+            edgelist=chain_edges,
+            width=3.0,
+            alpha=0.95
+        )
+
+        # 4. Nodes
+        nx.draw_networkx_nodes(
+            hardware,
+            pos,
+            ax=ax,
+            node_color=node_colors,
+            node_size=20,
+            linewidths=0
+        )
+
+        # Legend
+        legend_elements = [
+            Line2D([0], [0], color='black', lw=3, label='Chain couplers'),
+            Line2D([0], [0], color='black', lw=1.5, label='Logical couplers'),
+        ]
+        ax.legend(handles=legend_elements, loc='upper right', fontsize=8)
+
+        # Stats
+        chain_lengths = [len(c) for c in embedding.values()]
+        mean_chain = np.mean(chain_lengths) if chain_lengths else 0
+        max_chain = max(chain_lengths) if chain_lengths else 0
+
+        stats = f"qubits = {len(used_qubits)}\nmean chain = {mean_chain:.2f}\nmax chain = {max_chain}"
+        ax.text(
+            0.02, 0.02, stats,
+            transform=ax.transAxes,
+            fontsize=8,
+            bbox=dict(boxstyle="round", facecolor="white", alpha=0.9)
+        )
+
+        ax.set_title("Physical embedding on hardware graph")
+        ax.axis("off")
+
+        fig.savefig(outfile, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
 
     def find_embedding_with_client(self, bqm, save, label = None):
         if bqm.quadratic == {}:
@@ -339,6 +468,14 @@ class DWaveAdapter:
             target_edges = qubo_graph.edges
         else:
             target_edges = list(bqm.quadratic.keys())
+
+            qubo_graph = nx.Graph()
+            qubo_graph.add_edges_from(target_edges)
+
+            # make sure isolated linear variables are included too
+            for v in bqm.variables:
+                if v not in qubo_graph:
+                    qubo_graph.add_node(v)
         embedding, embedding_found = minorminer.find_embedding(target_edges,
                                                                self.solver_backend.edges,
                                                                return_overlap=True,
@@ -351,15 +488,10 @@ class DWaveAdapter:
                 target_edges, self.solver_backend.edges, return_overlap=True
             )
 
-
-        if self.solver == 'Advantage_system4.1' or self.solver == 'Advantage_system7.1':
-            dwave_networkx.draw_pegasus_embedding(dwave_networkx.pegasus_graph(16), emb=embedding, node_size=3,
-                                                      width=.3)
-        elif self.solver == 'Advantage2_system1.8':
-            dwave_networkx.draw_zephyr_embedding(dwave_networkx.zephyr_graph(16, 4), emb=embedding,
-                                                      node_size=3, width=.3)
-
-        plt.show()
+        suffix = "unclamped" if label is None else "clamped"
+        outfile = f"embedding_{suffix}_{self.solver}.png"
+        self.plot_physical_embedding(embedding, bqm,outfile)
+        raise Exception("stop after embedding")
 
         if label is None:
             self.embedding_unclamped = embedding

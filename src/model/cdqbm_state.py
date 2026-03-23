@@ -62,10 +62,10 @@ def orthogonal_init(shape, gain=1.0, seed=None):
 
 
 class Conv_Deep_QBM(MODEL):
-    def __init__(self, num_visible_nodes, num_lable_nodes, example_image, image_shape=(28,28), seed=77, kernel_size=3, pooling_size=0,
-                 pooling_type="deterministic", stride=1, sequential_layer_sizes=None, num_filter_kernels=0, is_recurrent_weights=False,
+    def __init__(self, num_visible_nodes = 28*28, num_lable_nodes=1, image_shape=(28,28), seed=77, kernel_size=3, pooling_size=4,
+                 pooling_type="deterministic", stride=1, sequential_layer_sizes=[16, 8, 4], num_filter_kernels=2, is_recurrent_weights=False,
                  param_string="", load_path="", speicherort=None, is_restricted=False, parallelize=False, centerize=False,
-                 hidden_bias_type="none", solver="SA", ising_or_qubo="qubo", num_reads=100, anneal=1000, api_token="", dwave_token="", groupQpuToken_name=""):
+                 hidden_bias_type="shared", solver="SA", ising_or_qubo="ising", num_reads=100, anneal=1000, api_token="", dwave_token="", groupQpuToken_name=""):
 
         self.kernel_size = kernel_size
         self.pooling_size = pooling_size
@@ -150,7 +150,7 @@ class Conv_Deep_QBM(MODEL):
         self.load_path = load_path
         self.speicherort = speicherort
 
-        self.spec: StackSpec = self.build_layer_indexing(example_image, is_recurrent_weights)
+        self.spec: StackSpec = self.build_layer_indexing(np.zeros(image_shape), is_recurrent_weights)
         self.slices: BlockSlices = build_slices(self.spec)
 
         self.sampler = self.init_sampler(solver, num_reads, anneal, parallelize, seed, ising_or_qubo, api_token, dwave_token, groupQpuToken_name)
@@ -471,8 +471,6 @@ class Conv_Deep_QBM(MODEL):
 
         biases_output = np.random.logistic(0.0, 0.5, (self.num_label_nodes))
         #biases_output = np.array([math.log(0.6/0.4), math.log(0.4/0.6)] )
-        print("bias:", biases_output)# initialize output biases to 0
-
 
         return biases_conv_units, biases_sequential_units, biases_output
 

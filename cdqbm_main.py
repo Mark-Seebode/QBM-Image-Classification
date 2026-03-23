@@ -128,7 +128,8 @@ def main(seed=19, solver="SA", sample_count=100,
         groupQpuToken_name = ""
         dwave_token = ""
 
-
+    # instead of example image make artificial one with correct shape for initialization
+    example_image = np.zeros(image_shape)
     print('Creating QBM...')
     qbm = Conv_Deep_QBM(
         num_visible_nodes=num_visible_nodes,
@@ -154,7 +155,6 @@ def main(seed=19, solver="SA", sample_count=100,
         dwave_token=dwave_token,
         num_reads=sample_count,
         groupQpuToken_name=groupQpuToken_name,
-        example_image=train_x[0],
         parallelize=bool(parallelize),
         centerize=False
     )
@@ -265,9 +265,9 @@ if __name__ == '__main__':
                         help='Num sweeps for SA (ignored for QPU)')
 
     parser.add_argument('--solver',
-                        default='SA',
+                        default='Advantage2_system1.12',
                         type=str,
-                        help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system1.11')")
+                        help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system1.12')")
 
     parser.add_argument('--data_set',
                         default='NEU-CLS-64',

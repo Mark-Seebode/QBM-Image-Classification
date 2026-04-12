@@ -128,10 +128,11 @@ def main(seed=19, solver="SA", sample_count=100,
         api_token = ""
         groupQpuToken_name = ""
         dwave_token = ""
+        raise Exception("Error loading API tokens. Make sure the token files exist and contain the correct tokens.")
 
     # instead of example image make artificial one with correct shape for initialization
     example_image = np.zeros(image_shape)
-
+    print("token", dwave_token)
     client = Client(token=dwave_token, solver=solver)
 
     print('Creating QBM...')

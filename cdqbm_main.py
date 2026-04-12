@@ -156,10 +156,10 @@ def main(seed=19, solver="SA", sample_count=100,
         solver=solver,
         ising_or_qubo="ising",
         anneal=anneal,
-        api_token=api_token,
+        api_token="",
         dwave_token=dwave_token,
         num_reads=sample_count,
-        groupQpuToken_name=groupQpuToken_name,
+        groupQpuToken_name="",
         parallelize=bool(parallelize),
         centerize=False
     )

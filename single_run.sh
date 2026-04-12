@@ -19,8 +19,8 @@ SEED=$1
 
 echo "Dispatching job"
 srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
-  --path "out/" \
-  --s $SEED &
+  --save "out/" \
+  --seed $SEED &
 
 
 echo -e "\tWaiting for Job completion."

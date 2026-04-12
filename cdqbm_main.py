@@ -275,7 +275,7 @@ if __name__ == '__main__':
                         help='Num sweeps for SA (ignored for QPU)')
 
     parser.add_argument('--solver',
-                        default='Advantage2_system1',
+                        default='Advantage2_system1.14',
                         type=str,
                         help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system1.12')")
 

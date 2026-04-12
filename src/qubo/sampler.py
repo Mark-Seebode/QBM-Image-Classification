@@ -490,8 +490,7 @@ class DWaveAdapter:
 
         suffix = "unclamped" if label is None else "clamped"
         outfile = f"embedding_{suffix}_{self.solver}.png"
-        self.plot_physical_embedding(embedding, bqm,outfile)
-        raise Exception("stop after embedding")
+        #self.plot_physical_embedding(embedding, bqm,outfile)
 
         if label is None:
             self.embedding_unclamped = embedding

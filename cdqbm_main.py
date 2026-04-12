@@ -132,7 +132,7 @@ def main(seed=19, solver="SA", sample_count=100,
     # instead of example image make artificial one with correct shape for initialization
     example_image = np.zeros(image_shape)
 
-    client = Client(token=dwave_token, solver="Advantage2_system1.13")
+    client = Client(token=dwave_token, solver=solver)
 
     print('Creating QBM...')
     qbm = Conv_Deep_QBM(

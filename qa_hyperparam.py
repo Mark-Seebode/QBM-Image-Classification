@@ -125,7 +125,6 @@ def pickup_seed(params_string_for_run, seed, epoch_data, dwave_token, new_run_pa
             ising_or_qubo="ising",
             dwave_token=dwave_token,
             num_reads=SAMPLE_COUNT,
-            example_image=train_x[0],
             parallelize=False,
             centerize=False
         )

@@ -182,11 +182,14 @@ def main(seed=19, solver="SA", sample_count=100,
     #qbm.save_weights(title=name, path=save)
     print('QBM trained')
 
-    # with open(save + name + f"acc_per_epoch{seed}.pkl", "wb") as f:
-    #     pickle.dump(acc_list, f)
-    #
-    # with open(save + name + f"auc_per_epoch{seed}.pkl", "wb") as f:
-    #     pickle.dump(auc_list, f)
+    with open(save + name + f"acc_per_epoch{seed}.pkl", "wb") as f:
+        pickle.dump(acc_list, f)
+
+    with open(save + name + f"auc_per_epoch{seed}.pkl", "wb") as f:
+        pickle.dump(auc_list, f)
+
+    with open(save + name + f"epoch_loss_list{seed}.pkl", "wb") as f:
+        pickle.dump(epoch_loss_list, f)
 
     print("accuracy per epoch:", acc_list)
     print("auc per epoch:", auc_list)
@@ -225,12 +228,12 @@ if __name__ == '__main__':
 
 
     parser.add_argument('-lr', '--learning_rate',
-                        default=0.017241958766778403,
+                        default=0.0023085203959687453,
                         type=float,
                         help='Learning rate for training')
 
     parser.add_argument('-clr', '--conv_learning_rate',
-                        default=0.017241958766778403,
+                        default=0.0023085203959687453,
                         type=float,
                         help='Learning rate for training')
 
@@ -265,7 +268,7 @@ if __name__ == '__main__':
                         help='Num sweeps for SA (ignored for QPU)')
 
     parser.add_argument('--solver',
-                        default='Advantage2_system1.12',
+                        default='Advantage2_system1',
                         type=str,
                         help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system1.12')")
 
@@ -300,14 +303,14 @@ if __name__ == '__main__':
                         help='Size of the convolutional kernel')
 
     parser.add_argument('--num_kernels',
-                        default=5,
+                        default=4,
                         type=int,
                         help='number of convolutional kernels')
 
     parser.add_argument("--sequential_layer_sizes",
                         type=int,
                         nargs="+",
-                        default=[4],
+                        default=[24, 16, 8],
                         help="List of sequential layer sizes",
     )
 

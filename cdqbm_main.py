@@ -20,6 +20,7 @@ from src.model.cdqbm_state import Conv_Deep_QBM
 from src.train.pipeline import run_unclamped
 from src.train.train import train_model
 import pickle
+from dwave.cloud import Client
 
 
 def str2bool(v):
@@ -130,6 +131,9 @@ def main(seed=19, solver="SA", sample_count=100,
 
     # instead of example image make artificial one with correct shape for initialization
     example_image = np.zeros(image_shape)
+
+    client = Client(token=dwave_token, solver="Advantage2_system1.13")
+
     print('Creating QBM...')
     qbm = Conv_Deep_QBM(
         num_visible_nodes=num_visible_nodes,
@@ -158,6 +162,7 @@ def main(seed=19, solver="SA", sample_count=100,
         parallelize=bool(parallelize),
         centerize=False
     )
+    qbm.sampler.load_Dwave_client(client)
 
     print('QBM created with:\n'
           f'  active hidden nodes: {qbm.num_hidden_units_per_layer}\n'
@@ -213,6 +218,7 @@ def main(seed=19, solver="SA", sample_count=100,
     #     plt.title(f'Trained Kernel {k+1}')
     #     plt.axis('off')
     # plt.show()
+    client.close()
 
 
 

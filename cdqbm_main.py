@@ -81,7 +81,7 @@ def main(seed=19, solver="SA", sample_count=100,
             test_x, test_y = val_x, val_y
 
     elif data_set == "NEU-CLS-64": # /home/s/seebode/BIG/
-        train_x, train_y, val_x, val_y, test_x, test_y = data_loader.get_NEU_CLS_64("src/data/NEU-CLS-64",
+        train_x, train_y, val_x, val_y, test_x, test_y = data_loader.get_NEU_CLS_64("/home/s/seebode/BIG/data/NEU-CLS-64",
                                                                       classes=["gg", "rp"], seed=seed,
                                                                         image_size=(28, 28), contrast_factor=1.5)
         if test_on_val:

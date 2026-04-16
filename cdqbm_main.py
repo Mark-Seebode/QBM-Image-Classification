@@ -219,7 +219,7 @@ def main(seed=19, solver="SA", sample_count=100,
     #     plt.title(f'Trained Kernel {k+1}')
     #     plt.axis('off')
     # plt.show()
-    client.close()
+    #client.close()
 
 
 

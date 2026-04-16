@@ -188,10 +188,10 @@ def main(seed=19, solver="SA", sample_count=100,
     #qbm.save_weights(title=name, path=save)
     print('QBM trained')
 
-    with open(save + name + f"acc_per_epoch{seed}.pkl", "wb") as f:
+    with open(save  + f"acc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(acc_list, f)
 
-    with open(save + name + f"auc_per_epoch{seed}.pkl", "wb") as f:
+    with open(save +  f"auc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(auc_list, f)
 
     #with open(save + name + f"epoch_loss_list{seed}.pkl", "wb") as f:

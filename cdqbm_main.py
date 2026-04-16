@@ -133,7 +133,7 @@ def main(seed=19, solver="SA", sample_count=100,
     # instead of example image make artificial one with correct shape for initialization
     example_image = np.zeros(image_shape)
     print("token", dwave_token)
-    client = Client(token=dwave_token, solver=solver)
+    #client = Client(token=dwave_token, solver=solver)
 
     print('Creating QBM...')
     qbm = Conv_Deep_QBM(
@@ -163,7 +163,7 @@ def main(seed=19, solver="SA", sample_count=100,
         parallelize=bool(parallelize),
         centerize=False
     )
-    qbm.sampler.load_Dwave_client(client)
+    #qbm.sampler.load_Dwave_client(client)
 
     print('QBM created with:\n'
           f'  active hidden nodes: {qbm.num_hidden_units_per_layer}\n'
@@ -194,8 +194,8 @@ def main(seed=19, solver="SA", sample_count=100,
     with open(save + name + f"auc_per_epoch{seed}.pkl", "wb") as f:
         pickle.dump(auc_list, f)
 
-    with open(save + name + f"epoch_loss_list{seed}.pkl", "wb") as f:
-        pickle.dump(epoch_loss_list, f)
+    #with open(save + name + f"epoch_loss_list{seed}.pkl", "wb") as f:
+     #   pickle.dump(epoch_loss_list, f)
 
     print("accuracy per epoch:", acc_list)
     print("auc per epoch:", auc_list)
@@ -275,7 +275,7 @@ if __name__ == '__main__':
                         help='Num sweeps for SA (ignored for QPU)')
 
     parser.add_argument('--solver',
-                        default='Advantage2_system1',
+                        default='SA',
                         type=str,
                         help="Solver: 'SA' or a D-Wave solver_backend name (e.g., 'Advantage_system7.1', 'Advantage2_system1.12')")
 

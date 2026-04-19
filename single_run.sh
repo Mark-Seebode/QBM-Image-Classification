@@ -10,7 +10,7 @@
 export TMPDIR=$HOME/tmp
 mkdir -p $TMPDIR
 
-mkdir -p out/
+mkdir -p qa_unrestricted/
 
 source venv/bin/activate && echo "venv loaded"
 
@@ -18,8 +18,8 @@ source venv/bin/activate && echo "venv loaded"
 SEED=$1
 
 echo "Dispatching job"
-srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_main.py \
-  --save "out/" \
+srun --exclusive --ntasks=1 --nodes=1 -c 1 python3 cdqbm_qa_main.py. \
+  --save "qa_unrestricted/" \
   --seed $SEED &
 
 
